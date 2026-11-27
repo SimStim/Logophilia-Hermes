@@ -129,5 +129,15 @@ which supersedes [design outline.md](design%20outline.md)).
   direct Play link where one is known — Moon+ Reader for EPUB (§7),
   foobar2000 for audio (package/link verified against the developer's own
   Play redirect, §12.2) — or a Play search, plus a retry after installation.
-- Next: Milestone 6 — release engineering (§10): release keystore handling,
-  signed release APK, reproducible build.
+- **Milestone 6 — done.** Release engineering (§10): the stable signing
+  identity lives in a keystore outside the repository (referenced by the
+  git-ignored `keystore.properties`); `./gradlew assembleRelease` produces a
+  minified, V2-signed release APK (verified with `apksigner`; stable
+  `applicationId eu.logophilia.hermes`, minSdk 29, targetSdk 37, ~2.8 MB).
+  The release build was installed and exercised on the emulator and behaves
+  like the debug build. ⚠️ **Until the API implements the explicit client
+  marker (TODO.md, both repositories), any release APK still carries the
+  development `Referer` spoof and must not be distributed publicly** — the
+  spoof is replaced by deleting the single marked interceptor in
+  `LogophiliaApi.kt`.
+- All milestones complete. Remaining cross-repository work is in `TODO.md`.
