@@ -28,8 +28,8 @@ It is **not**:
 - **Minimum Android version:** Android 10 (API 29)
 - **Networking:** native Android HTTP networking / OkHttp
 - **JSON:** Kotlin serialization
-- **Settings:** DataStore / SharedPreferences, with secure key storage backed
-  by Android Keystore
+- **State:** a single persisted timestamp (`lastSyncAttempt`); no user
+  preferences, no settings screens
 - **File sharing:** Android Intents and FileProvider
 
 No bundled networking binaries, no Room/SQLite database, no unnecessary
@@ -50,10 +50,50 @@ sufficient for synchronization.
   without either the previous working version or a verified replacement;
   existing content always remains usable offline.
 - **Automatic API key renewal** — when the server reports an expired mobile
-  API key, the replacement key is stored securely and the request is retried
-  once.
+  API key, the replacement key is stored and the request is retried once.
+  *(Pending the matching API feature; until then an unknown key is a plain
+  authentication failure.)*
+
+## Building
+
+Requirements: JDK 17 or later **with `javac`** (JRE-only Java installs are
+not enough) and an Android SDK with the API 37 platform. Set `sdk.dir` in
+`local.properties` (git-ignored), e.g.:
+
+```
+sdk.dir=/home/yourname/Android/Sdk
+```
+
+Debug APK:
+
+```
+./gradlew assembleDebug     # → app/build/outputs/apk/debug/app-debug.apk
+```
+
+Release APK (signed with the keystore named in `keystore.properties`,
+git-ignored; see SPECIFICATION.md §10):
+
+```
+./gradlew assembleRelease   # → app/build/outputs/apk/release/
+```
+
+The API key is read from `secrets.properties` (git-ignored) and compiled into
+`BuildConfig`:
+
+```
+API_KEY=…
+```
+
+Without that file the project still builds, with an empty key.
 
 ## Status
 
-📝 **Design phase.** The full specification is in
-[design outline.md](design%20outline.md); implementation has not started yet.
+🚧 **Implementation started** (see [SPECIFICATION.md](SPECIFICATION.md),
+which supersedes [design outline.md](design%20outline.md)).
+
+- **Milestone 1 — done.** Project scaffold: Gradle build (Kotlin DSL, AGP
+  9.5.3, Gradle 9.9.2), `applicationId eu.logophilia.hermes`, minSdk 29,
+  targetSdk 37, Jetpack Compose shell with the four destinations (Home,
+  Library, Sync, About) as placeholders, bundled logos from `art/`,
+  FileProvider stub, backup/extraction rules, secret and signing wiring.
+- Next: synchronization engine (§4, §5), library UI and file opening (§6–§7).
