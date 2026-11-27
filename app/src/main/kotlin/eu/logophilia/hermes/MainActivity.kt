@@ -17,4 +17,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        // §4 trigger: application opened or returned to the foreground.
+        (application as HermesApplication).syncCoordinator.onForeground()
+    }
 }

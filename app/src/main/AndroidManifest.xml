@@ -4,7 +4,12 @@
     <!-- The API client talks to https://api.logophilia.eu (SPECIFICATION.md §3). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- §4 Network gate reads ConnectivityManager (NOT_METERED, VALIDATED) and
+         registers for network availability callbacks. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
+        android:name=".HermesApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
