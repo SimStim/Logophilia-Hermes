@@ -474,14 +474,22 @@ class SyncEngineTest {
     }
 
     @Test
-    fun `the network gate is re-checked before every file commit`() {
+    fun `a network gate flip mid-attempt keeps committed work and deletes nothing`() {
         layout = before()
-        val book = FakeEntry("Book.epub", bytes("book"))
-        val track = FakeEntry("Track.opus", bytes("audio"))
-        val client = FakeClient(book, track)
+        val bookV1 = FakeEntry("Book.epub", bytes("book v1"))
+        val old = FakeEntry("Old.pdf", bytes("old"))
+        val client = FakeClient(bookV1, old)
+        assertTrue(engine(client).attempt() is SyncOutcome.Success)
+
+        // The new manifest updates the book, adds a file, and removes Old.pdf;
+        // the gate flips back to metered after the first download — the
+        // re-check before the next file's commit must refuse it.
+        val bookV2 = FakeEntry("Book.epub", bytes("book v2"))
+        val fresh = FakeEntry("New.pdf", bytes("new"))
+        client.manifest = listOf(bookV2, fresh)
+        advancePastCooldown()
+        client.resetCounters()
         var gateCalls = 0
-        // The gate flips back to metered once the first file is downloaded:
-        // the re-check before the second file's commit must refuse it.
         val flipAfterFirstDownload: () -> Boolean = {
             gateCalls++
             if (client.downloads.contains("Book.epub")) false else true
@@ -491,12 +499,53 @@ class SyncEngineTest {
 
         assertTrue("expected Failure, got $outcome", outcome is SyncOutcome.Failure)
         assertEquals(NETWORK_GATE_LOST_MESSAGE, (outcome as SyncOutcome.Failure).message)
-        // preflight + one re-check before each of the two files' commits:
+        // The flip was observed before the second file's commit (preflight,
+        // one re-check per required file — the second download never happened):
         assertEquals(3, gateCalls)
         // The second file never reached the network (§5 Phase C 1):
         assertEquals(listOf("Book.epub"), client.downloads)
-        // Nothing was committed, nothing deleted, Temp discarded (§4, §5):
-        assertTrue(File(layout.books, "Book.epub").exists().not())
+        // What was committed in this attempt remains (§5 Phase E, §11: 25):
+        assertEquals("book v2", File(layout.books, "Book.epub").readText())
+        assertEquals(bookV2.sha256, File(layout.books, "Book.epub.hash").readText())
+        assertFalse(File(layout.documents, "New.pdf").exists())
+        // Deletions only ever follow a fully successful attempt (§5 Phase E):
+        assertEquals("old", File(layout.documents, "Old.pdf").readText())
+    }
+
+    @Test
+    fun `files committed before a later failure are never re-downloaded`() {
+        layout = before()
+        val book = FakeEntry("Book.epub", bytes("book"))
+        val ost = FakeEntry("The Pitch 2025 OST.zip", zipBytes("album/track.opus" to "audio"))
+        val broken = FakeEntry("Extra.pdf", bytes("extra"))
+        val client = FakeClient(book, ost, broken)
+        client.corruptDownloadFor = "Extra.pdf"
+
+        val first = engine(client).attempt()
+
+        // The verified book and the extracted OST are committed despite the
+        // later checksum mismatch (§5 Phase C, §11: 25):
+        assertTrue("expected Failure, got $first", first is SyncOutcome.Failure)
+        assertEquals("book", File(layout.books, "Book.epub").readText())
+        assertEquals(book.sha256, File(layout.books, "Book.epub.hash").readText())
+        assertEquals("audio", File(layout.music, "The Pitch 2025 OST/album/track.opus").readText())
+        assertEquals(ost.sha256, File(layout.music, "The Pitch 2025 OST/${ost.sha256}.hash").readText())
+        assertFalse(File(layout.documents, "Extra.pdf").exists())
+        assertTrue(File(layout.documents, "Extra.pdf.hash").exists().not())
+        // Temp was still discarded with the rejected download (§4, §11: 5):
         assertTrue(layout.temp.listFiles().isNullOrEmpty())
+
+        // Next attempt: only the failed file is downloaded — committing is
+        // immediate, so valid work is never re-fetched (§5 Phase C):
+        client.manifest = listOf(book, ost, FakeEntry("Extra.pdf", bytes("fixed extra")))
+        client.corruptDownloadFor = null
+        advancePastCooldown()
+        client.resetCounters()
+
+        val second = engine(client).attempt()
+
+        assertEquals(SyncOutcome.Success(added = 1, updated = 0, removed = 0), second)
+        assertEquals(listOf("Extra.pdf"), client.downloads)
+        assertEquals("fixed extra", File(layout.documents, "Extra.pdf").readText())
     }
 }

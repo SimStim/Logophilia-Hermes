@@ -15,8 +15,10 @@ internal const val NETWORK_GATE_LOST_MESSAGE =
 
 /**
  * Progress of a running synchronization, shown by the sync indicator (§8):
- * blue while the manifest request waits for the server, green from receiving
- * the manifest through downloads to the commit.
+ * blue while the manifest request waits for the server; green while content
+ * flows — every required file is downloaded (TRANSFERRING) and committed
+ * immediately (COMMITTING, §5 Phase C–D) — and the attempt finishes with the
+ * obsolete-content cleanup under the last COMMITTING signal.
  */
 enum class SyncPhase {
     MANIFEST_REQUESTED,
@@ -113,12 +115,18 @@ class SyncEngine(
 
     /**
      * Observes the progress of the running attempt (§8 Status indicators).
-     * Called on the engine's worker thread; set once at wiring time.
+     * Called on the engine's worker thread; set once at wiring time. A
+     * consecutive equal signal is skipped: phases are state transitions.
      */
     @Volatile
     var phaseListener: ((SyncPhase) -> Unit)? = null
 
+    @Volatile
+    private var lastPhase: SyncPhase? = null
+
     private fun phase(p: SyncPhase) {
+        if (lastPhase == p) return
+        lastPhase = p
         phaseListener?.invoke(p)
     }
 
@@ -175,10 +183,9 @@ class SyncEngine(
         val work = plan(entries)                      // Phase B
         val downloads = File(layout.temp, ContentLayout.TEMP_DOWNLOADS)
         val extracts = File(layout.temp, ContentLayout.TEMP_EXTRACT)
-        downloadRequired(work, downloads)             // Phase C
-        extractArchives(work, downloads, extracts)    // Phase D
-        phase(SyncPhase.COMMITTING)
-        val removed = commit(work, downloads, extracts) // Phase E 1–3
+        downloadAndCommitEach(work, downloads, extracts) // Phase C–D, file by file
+        phase(SyncPhase.COMMITTING)   // obsolete-content cleanup (§5 Phase E)
+        val removed = cleanup(work)   // Phase E 1–3
         SyncOutcome.Success(added = work.addedCount, updated = work.updatedCount, removed = removed)
     } catch (e: Exception) {
         SyncOutcome.Failure(describe(e), e)
@@ -227,8 +234,14 @@ class SyncEngine(
         is Placement.Archive -> File(layout.dirFor(placement.category), placement.baseName)
     }
 
-    /** Phase C — download all required files into Temp and verify each. */
-    private fun downloadRequired(work: Work, downloads: File) {
+    /**
+     * Phases C–D, merged: each required file is downloaded, verified, and
+     * committed in turn, in manifest order (§5 Phase C). A failure — or a
+     * network-gate flip — stops the attempt while keeping every file already
+     * committed (§5 Phase E): those files match the manifest and are
+     * recognized as unchanged by the next attempt (§5 Phase B).
+     */
+    private fun downloadAndCommitEach(work: Work, downloads: File, extracts: File) {
         for (entry in work.required) {
             // §5 Phase C 1: the gate is re-checked before every file commit —
             // a "temporarily not metered" network may flip back mid-attempt
@@ -237,6 +250,7 @@ class SyncEngine(
             if (!networkGate()) {
                 throw SyncException(NETWORK_GATE_LOST_MESSAGE)
             }
+            phase(SyncPhase.TRANSFERRING)             // §8: green while content flows
             val downloaded = client.download(entry.name, File(downloads, entry.name))
             // The checksum applies to the complete original file content (§5);
             // size is re-checked too because /download is chunked and the
@@ -251,41 +265,38 @@ class SyncEngine(
                     "Size mismatch for \"${entry.name}\": downloaded ${downloaded.size} bytes, manifest says ${entry.size}",
                 )
             }
+            phase(SyncPhase.COMMITTING)               // §8: this verified file commits now
+            commit(work.placements.getValue(entry.name), entry, downloads, extracts)
         }
     }
 
-    /** Phase D — extract every required ZIP fully into Temp, never live. */
-    private fun extractArchives(work: Work, downloads: File, extracts: File) {
-        for (entry in work.required) {
-            val placement = work.placements[entry.name] as? Placement.Archive ?: continue
-            extractor.extract(
-                File(downloads, entry.name),
-                File(extracts, placement.baseName),
-            )
-        }
-    }
+    /**
+     * Commits one verified file immediately (§5 Phase C 4). Never called with
+     * an unverified download: verification has just succeeded (§9).
+     */
+    private fun commit(placement: Placement, entry: ManifestEntry, downloads: File, extracts: File) {
+        when (placement) {
+            is Placement.Plain -> {
+                // Move the verified file into its final location and write the
+                // sidecar from the manifest value (§5 Phase C 4).
+                val target = File(layout.dirFor(placement.category), entry.name)
+                move(File(downloads, entry.name), target)
+                layout.sidecarOf(target).writeText(entry.sha256)
+            }
 
-    /** Phase E — commit, swap, clean up. Runs only after C and D succeeded. */
-    private fun commit(work: Work, downloads: File, extracts: File): Int {
-        // 1. Verified plain files move into their final locations; sidecars
-        //    are written from the manifest values (§5 Phase E 1).
-        for (entry in work.required) {
-            val placement = work.placements[entry.name] as? Placement.Plain ?: continue
-            val target = File(layout.dirFor(placement.category), entry.name)
-            move(File(downloads, entry.name), target)
-            layout.sidecarOf(target).writeText(entry.sha256)
+            is Placement.Archive -> {
+                // Full ZIP handling of Phase D within this commit step:
+                // extract into Temp, swap, marker, delete the archive (§5 Phase D).
+                val target = File(layout.dirFor(placement.category), placement.baseName)
+                val extracted = File(extracts, placement.baseName)
+                extractor.extract(File(downloads, entry.name), extracted)
+                if (target.exists()) target.deleteRecursively()
+                move(extracted, target)
+                File(target, "${entry.sha256}.hash").writeText(entry.sha256)
+                // The archive itself is never retained (§5 Phase D 6).
+                File(downloads, entry.name).delete()
+            }
         }
-        // 2. Directory swaps for ZIPs: full replacement, never a merge;
-        //    the marker lands in the new directory root (§5 Phase D, E 2).
-        for (entry in work.required) {
-            val placement = work.placements[entry.name] as? Placement.Archive ?: continue
-            val target = File(layout.dirFor(placement.category), placement.baseName)
-            if (target.exists()) target.deleteRecursively()
-            move(File(extracts, placement.baseName), target)
-            File(target, "${entry.sha256}.hash").writeText(entry.sha256)
-        }
-        // 3. Obsolete content is removed only now, after everything committed (§5 Phase E 3).
-        return cleanup(work)
     }
 
     /**
