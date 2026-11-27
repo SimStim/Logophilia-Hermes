@@ -551,12 +551,13 @@ private fun LibraryScreen(
     // top level, or a subdirectory inside one; resets when the category changes.
     val browsing = remember(selected) { mutableStateOf<LibraryItem.FolderItem?>(null) }
     Column(modifier = modifier.padding(16.dp)) {
-        // Chips centered like on the Home page (§8). Every tap returns to the
-        // chosen category's top level — including a tap on the already-active
-        // chip — so the top row always answers while an archive is browsed.
+        // Chips centered like on the Home page, with the same 8 dp spacing
+        // between them (§8). Every tap returns to the chosen category's top
+        // level — including a tap on the already-active chip — so the top row
+        // always answers while an archive is browsed.
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
             Category.entries.forEach { category ->
                 FilterChip(
