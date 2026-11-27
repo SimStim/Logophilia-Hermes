@@ -110,5 +110,14 @@ which supersedes [design outline.md](design%20outline.md)).
   Temp discipline, and the app wiring (coordinator, foreground and network
   triggers). 50+ unit tests; live end-to-end sync against the real API
   including a real OST extraction (opt-in via `HERMES_LIVE_SYNC=full`).
-- Next: Milestone 4 — the UI (§8): Home, Library, Sync, About with the status
-  indicators; then file opening (§7).
+- **Milestone 4 — done.** UI (§8): Home (logo, Wi-Fi and sync indicators,
+  counts, recently added, quick access), Library (category browse; internal
+  metadata never listed), Sync (state, last attempt, error detail, cooldown
+  countdown, Manual Sync honoring the cooldown), About. The Wi-Fi indicator
+  probes `GET /` on the §4 trigger events (red without any request when no
+  qualifying network exists); the sync indicator follows the engine phases
+  (blue while waiting, green animated while transferring, green/red after).
+  Verified on the emulator in light and dark; see NOTES for what needs a
+  real Wi-Fi device to observe.
+- Next: Milestone 5 — file opening with external applications (§7):
+  FileProvider Intents, MIME mapping, missing-handler suggestions.

@@ -5,5 +5,47 @@
     <string name="tab_library">Library</string>
     <string name="tab_sync">Sync</string>
     <string name="tab_about">About</string>
-    <string name="shell_placeholder">Milestone 1 scaffold — the %1$s section arrives with a later milestone.</string>
+
+    <string name="category_books">Books</string>
+    <string name="category_music">Music</string>
+    <string name="category_documents">Documents</string>
+    <string name="category_other">Other</string>
+
+    <string name="home_counts">%1$d books · %2$d albums · %3$d documents</string>
+    <string name="home_recently_added">Recently added</string>
+    <string name="home_nothing_yet">Nothing synchronized yet.</string>
+
+    <string name="library_empty">Nothing here yet — synchronize to fill this category.</string>
+    <string name="library_open_pending">Opening content with your apps arrives in the next milestone.</string>
+
+    <string name="sync_state_idle">Ready to synchronize</string>
+    <string name="sync_state_contacting">Contacting server…</string>
+    <string name="sync_state_receiving">Receiving content…</string>
+    <string name="sync_state_committing">Committing…</string>
+    <string name="sync_state_success">Synchronized — %1$d new · %2$d updated · %3$d removed</string>
+    <string name="sync_state_failure">Synchronization failed</string>
+    <string name="sync_last_attempt">Last attempt: %1$s</string>
+    <string name="sync_never_attempted">Not synchronized yet</string>
+    <string name="sync_cooldown">Next attempt possible in %1$s</string>
+    <string name="sync_manual">Sync now</string>
+    <string name="sync_desc_idle">Synchronization: idle</string>
+    <string name="sync_desc_running">Synchronization: running</string>
+    <string name="sync_desc_done">Synchronization: completed</string>
+    <string name="sync_desc_failed">Synchronization: failed</string>
+
+    <string name="popup_ok">OK</string>
+    <string name="popup_sync_title">Synchronization</string>
+    <string name="popup_wifi_title">Server reachability</string>
+    <string name="sync_detail_error">Last error: %1$s</string>
+
+    <string name="wifi_desc_neutral">Server reachability unknown</string>
+    <string name="wifi_desc_red">No unmetered network</string>
+    <string name="wifi_desc_amber">Server unreachable</string>
+    <string name="wifi_desc_green">Server reachable</string>
+    <string name="wifi_detail_red">No validated unmetered network. Hermes waits for one and never downloads over mobile data.</string>
+    <string name="wifi_detail_amber">An unmetered network is present, but api.logophilia.eu did not answer successfully (%1$s).</string>
+    <string name="wifi_detail_green">api.logophilia.eu answered successfully.</string>
+
+    <string name="about_description">A companion for the Logophilia free loot: keeps the currently available content synchronized over Wi-Fi and hands it to your reader and player apps. Not a media library.</string>
+    <string name="about_version">Version %1$s</string>
 </resources>

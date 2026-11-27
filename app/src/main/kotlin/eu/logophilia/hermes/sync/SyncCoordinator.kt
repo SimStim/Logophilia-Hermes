@@ -56,6 +56,11 @@ class SyncCoordinator(
     /** Wi-Fi indicator state (§8), probed on the §4 trigger events. */
     val wifi: StateFlow<WifiIndicator> = mutableWifi.asStateFlow()
 
+    private val mutableWifiDetail = MutableStateFlow<GreetingResult?>(null)
+
+    /** The greeting result behind the current Wi-Fi indicator, for the detail popup. */
+    val wifiDetail: StateFlow<GreetingResult?> = mutableWifiDetail.asStateFlow()
+
     init {
         engine.phaseListener = { phase ->
             mutableStatus.value = mutableStatus.value.copy(phase = phase)
@@ -90,7 +95,17 @@ class SyncCoordinator(
                 // a last resort so the status can never be left stuck.
                 SyncOutcome.Failure("Unexpected failure: ${t.javaClass.simpleName}: ${t.message ?: ""}")
             }
-            mutableStatus.value = SyncStatus(running = false, phase = null, lastOutcome = outcome)
+            mutableStatus.value = SyncStatus(
+                running = false,
+                phase = null,
+                // A skipped attempt is no attempt (§4): the indicator keeps
+                // its previous real outcome (§8 has no skipped state).
+                lastOutcome = if (outcome is SyncOutcome.Skipped) {
+                    mutableStatus.value.lastOutcome
+                } else {
+                    outcome
+                },
+            )
             // One concise line per attempt; never any API key material (§3).
             Log.i(TAG, "sync outcome: $outcome")
         }
@@ -106,10 +121,12 @@ class SyncCoordinator(
             mutableWifi.value = WifiIndicator.RED
             return
         }
-        mutableWifi.value = when (greeting()) {
+        val result = greeting()
+        mutableWifi.value = when (result) {
             GreetingResult.SUCCESS -> WifiIndicator.GREEN
             else -> WifiIndicator.AMBER
         }
+        mutableWifiDetail.value = result
     }
 
     private companion object {
