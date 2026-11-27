@@ -19,7 +19,7 @@
     <string name="category_documents">Documents</string>
     <string name="category_other">Other</string>
 
-    <!-- Home (§8): counts use ICU plurals, joined by home_counts -->
+    <!-- Home (§8): the counts are a vertical list, one ICU plural per line -->
     <plurals name="home_count_books">
         <item quantity="one">1 book</item>
         <item quantity="other">%d books</item>
@@ -32,7 +32,6 @@
         <item quantity="one">1 document</item>
         <item quantity="other">%d documents</item>
     </plurals>
-    <string name="home_counts">%1$s · %2$s · %3$s</string>
     <string name="home_recently_added">Recently added</string>
     <string name="home_nothing_yet">Nothing synchronized yet.</string>
 

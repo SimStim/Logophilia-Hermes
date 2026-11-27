@@ -398,8 +398,11 @@ cannot fake recency. No added dates are stored anywhere.
 Browse locally synchronized content by category: Books, Music, Documents,
 Other. The listing is hierarchical: plain files appear as items; each
 extracted archive appears as a single item named after the archive basename
-without ".zip"; tapping it lists the files it contains (`.hash` markers and
-sidecars are never listed). Opening an item or a contained file launches the
+without ".zip"; tapping it lists what it contains (`.hash` markers and
+sidecars are never listed). Subdirectories inside an archive are browsed the
+same way — "Back" pops one level — and every display name is the bare
+file-system name, never a path: if content is nested five levels deep, the
+user taps five times. Opening an item or a contained file launches the
 appropriate external application (§7).
 
 ### Sync

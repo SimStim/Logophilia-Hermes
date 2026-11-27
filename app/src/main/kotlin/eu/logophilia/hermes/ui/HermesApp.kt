@@ -418,15 +418,27 @@ private fun HomeScreen(
         // Sync page; each indicator has exactly one visual home.
         WifiSymbol(state = wifi, onClick = onWifiTap)
         Spacer(Modifier.height(16.dp))
-        Text(
-            text = home?.let {
-                stringResource(
-                    R.string.home_counts,
-                    quantityString(R.plurals.home_count_books, it.books),
-                    quantityString(R.plurals.home_count_albums, it.albums),
-                    quantityString(R.plurals.home_count_documents, it.documents),
+        // §8 Home: the counts as a vertical list, one line per category.
+        home?.let { data ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = quantityString(R.plurals.home_count_books, data.books),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
                 )
-            } ?: stringResource(R.string.home_nothing_yet),
+                Text(
+                    text = quantityString(R.plurals.home_count_albums, data.albums),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = quantityString(R.plurals.home_count_documents, data.documents),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } ?: Text(
+            text = stringResource(R.string.home_nothing_yet),
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,
         )
@@ -448,14 +460,18 @@ private fun HomeScreen(
             Text(
                 text = stringResource(R.string.home_recently_added),
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.align(Alignment.Start),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
             LazyColumn {
                 items(recent) { (category, item) ->
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
                     )
                 }
             }
@@ -483,9 +499,9 @@ private fun LibraryScreen(
     onOpenFile: (File) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // §8: the archive currently being browsed, one level down; resets when
-    // the category changes.
-    val browsing = remember(selected) { mutableStateOf<LibraryItem.ArchiveItem?>(null) }
+    // §8: the directory currently being browsed — an extracted archive at the
+    // top level, or a subdirectory inside one; resets when the category changes.
+    val browsing = remember(selected) { mutableStateOf<LibraryItem.FolderItem?>(null) }
     Column(modifier = modifier.padding(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Category.entries.forEach { category ->
@@ -516,15 +532,24 @@ private fun LibraryScreen(
             }
         }
         if (browsing.value != null) {
-            TextButton(onClick = { browsing.value = null }) {
+            // "Back" pops exactly one level; deep nesting costs one tap per
+            // level (§8 Library), ending at the category's top level.
+            val current = browsing.value
+            TextButton(onClick = {
+                if (current != null) {
+                    browsing.value = LibraryContent.parent(current, contentLayout, selected)
+                }
+            }) {
                 Text(stringResource(R.string.library_back))
             }
         }
         if (items.isEmpty()) {
+            // Same vertical offset as a list row, so an empty category lines
+            // up with the first row of a populated one.
             Text(
                 text = stringResource(R.string.library_empty),
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 24.dp),
+                modifier = Modifier.padding(vertical = 12.dp),
             )
         } else {
             LazyColumn {
@@ -536,7 +561,7 @@ private fun LibraryScreen(
                             .fillMaxWidth()
                             .clickable {
                                 when (item) {
-                                    is LibraryItem.ArchiveItem -> browsing.value = item
+                                    is LibraryItem.FolderItem -> browsing.value = item
                                     is LibraryItem.FileItem -> onOpenFile(item.file)
                                 }
                             }
@@ -570,7 +595,13 @@ private fun SyncScreen(
             onClick = onSyncTap,
         )
         Spacer(Modifier.height(12.dp))
-        Text(text = syncStateText(status), style = MaterialTheme.typography.titleMedium)
+        // fillMaxWidth + centered so a wrapped summary line centers too (§8).
+        Text(
+            text = syncStateText(status),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(8.dp))
         val lastAttempt = coordinator.lastSyncAttemptMillis()
         Text(
@@ -582,6 +613,7 @@ private fun SyncScreen(
                 )
             } ?: stringResource(R.string.sync_never_attempted),
             style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
         )
         (status.lastOutcome as? SyncOutcome.Failure)?.let { failure ->
             Spacer(Modifier.height(12.dp))
@@ -603,6 +635,7 @@ private fun SyncScreen(
             Text(
                 text = stringResource(R.string.sync_cooldown, formatCooldown(remaining)),
                 style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
             )
         }
         Spacer(Modifier.height(16.dp))

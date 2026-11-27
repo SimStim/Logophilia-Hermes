@@ -56,10 +56,9 @@ different signing identity.
 
 | Name | Value | Where it appears |
 |---|---|---|
-| `home_count_books` (plurals) | 1 book / %d books | Home counts line (joined by `home_counts`) |
-| `home_count_albums` (plurals) | 1 album / %d albums | Home counts line |
-| `home_count_documents` (plurals) | 1 document / %d documents | Home counts line |
-| `home_counts` | `%1$s · %2$s · %3$s` | Home counts line, joining the three plurals |
+| `home_count_books` (plurals) | 1 book / %d books | Home counts list, one line per category |
+| `home_count_albums` (plurals) | 1 album / %d albums | Home counts list |
+| `home_count_documents` (plurals) | 1 document / %d documents | Home counts list |
 | `home_recently_added` | Recently added | Home "Recently added" heading |
 | `home_nothing_yet` | Nothing synchronized yet. | Home counts line before the first successful sync |
 

@@ -4,6 +4,7 @@ import eu.logophilia.hermes.sync.Category
 import eu.logophilia.hermes.sync.ContentLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -13,9 +14,10 @@ import java.io.File
 /**
  * Offline tests of what the Library and Home screens show (§8): a hierarchical
  * listing — plain files as items, one item per extracted archive named after
- * the archive basename without ".zip", browsed one level down — with
- * sidecars/markers invisible (§11: 24), counts, and mtime-based recency over
- * top-level items only (archive items by the directory's own timestamp).
+ * the archive basename without ".zip", browsed level by level with bare
+ * file-system names (never paths) — with sidecars/markers invisible (§11: 24),
+ * counts, and mtime-based recency over top-level items only (archive items by
+ * the directory's own timestamp).
  */
 class LibraryContentTest {
 
@@ -40,11 +42,11 @@ class LibraryContentTest {
         // The archive appears once, named after the archive basename without
         // ".zip" (§8 Library) — never as its inner files:
         assertEquals(listOf("Some OST"), music.map { it.name })
-        assertTrue(music.single() is LibraryItem.ArchiveItem)
+        assertTrue(music.single() is LibraryItem.FolderItem)
     }
 
     @Test
-    fun `tapping an archive lists the files it contains without metadata`() {
+    fun `tapping an archive lists immediate children with bare names`() {
         layout.createDirectories()
         val album = File(layout.music, "Some OST").apply { mkdirs() }
         File(album, "track.opus").writeText("t")
@@ -55,13 +57,66 @@ class LibraryContentTest {
         File(album, "track.opus.hash").writeText("0".repeat(64))
 
         val archive = LibraryContent.topLevel(layout, Category.Music)
-            .single() as LibraryItem.ArchiveItem
+            .single() as LibraryItem.FolderItem
         val inside = LibraryContent.contents(archive.directory)
 
-        // Contained files, relative to the archive, alphabetical; `.hash`
-        // markers and sidecars are never listed (§6, §11: 24):
-        assertEquals(listOf("sub/booklet.pdf", "track.opus"), inside.map { it.name })
-        assertTrue(inside.all { it is LibraryItem.FileItem })
+        // Immediate children only, each with its bare file-system name —
+        // display text never contains "/" (§8 Library). The subdirectory is
+        // itself browsable; `.hash` markers and sidecars are never listed
+        // (§6, §11: 24).
+        assertEquals(listOf("sub", "track.opus"), inside.map { it.name })
+        assertTrue(inside[0] is LibraryItem.FolderItem)
+        assertTrue(inside[1] is LibraryItem.FileItem)
+    }
+
+    @Test
+    fun `deep nesting is browsed one level per tap, always with bare names`() {
+        layout.createDirectories()
+        val deep = File(layout.other, "Archive")
+        val nested = deep.resolve("a/b/c/d/e")
+        nested.mkdirs()
+        File(nested, "deepest.txt").writeText("deep")
+
+        var browsed = LibraryContent.topLevel(layout, Category.Other)
+            .single() as LibraryItem.FolderItem
+        var depth = 1
+        while (true) {
+            val listing = LibraryContent.contents(browsed.directory)
+            val folder = listing.filterIsInstance<LibraryItem.FolderItem>().singleOrNull()
+            if (folder == null) {
+                // The innermost level lists the file, named bare:
+                assertEquals(listOf("deepest.txt"), listing.map { it.name })
+                break
+            }
+            assertTrue(
+                "no path separator in display names",
+                listing.all { !it.name.contains('/') },
+            )
+            browsed = folder
+            depth++
+        }
+        assertEquals(6, depth) // Archive → a → b → c → d → e: six taps, five levels
+    }
+
+    @Test
+    fun `back pops one level and ends at the category top level`() {
+        layout.createDirectories()
+        val album = File(layout.music, "Some OST").apply { mkdirs() }
+        File(album, "sub").mkdirs()
+
+        val archive = LibraryContent.topLevel(layout, Category.Music)
+            .single() as LibraryItem.FolderItem
+        val sub = LibraryContent.contents(archive.directory)
+            .filterIsInstance<LibraryItem.FolderItem>()
+            .single()
+
+        // From "sub", Back lands on the archive; from the archive, Back
+        // leaves browsing entirely (null = category top level).
+        assertEquals(
+            "Some OST",
+            LibraryContent.parent(sub, layout, Category.Music)?.name,
+        )
+        assertNull(LibraryContent.parent(archive, layout, Category.Music))
     }
 
     @Test
@@ -132,7 +187,7 @@ class LibraryContentTest {
             listOf("Some OST", "New.pdf", "Old.epub"),
             recent.map { it.second.name },
         )
-        assertTrue(recent.first().second is LibraryItem.ArchiveItem)
+        assertTrue(recent.first().second is LibraryItem.FolderItem)
     }
 
     @Test

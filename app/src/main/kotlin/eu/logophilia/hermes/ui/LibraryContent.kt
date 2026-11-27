@@ -5,20 +5,21 @@ import eu.logophilia.hermes.sync.ContentLayout
 import java.io.File
 
 /**
- * One browsable item in the Library (§8): either a plain openable file or an
- * extracted archive. The listing is hierarchical — each extracted archive
- * appears as a single item named after the archive basename without ".zip";
- * tapping it lists the files it contains instead of opening anything.
+ * One browsable item in the Library (§8): either a plain openable file or a
+ * browsable directory. The listing is hierarchical — each extracted archive
+ * appears at the top level as a single item named after the archive basename
+ * without ".zip"; tapping it lists what it contains. Subdirectories inside an
+ * archive are browsed the same way, one tap per level, and every display name
+ * is the bare file-system name — user-facing text never contains "/" (§8).
  */
 sealed interface LibraryItem {
 
-    /** The display name: a file name, or the archive basename sans ".zip". */
+    /** The display name: the bare file or directory name, never a path. */
     val name: String
 
     /**
-     * Modification time driving "recently added" (§8 Home). For archive items
-     * this is the extracted directory's own timestamp (§8: no added dates are
-     * stored anywhere).
+     * Modification time driving "recently added" (§8 Home). For folders this
+     * is the directory's own timestamp (§8: no added dates are stored anywhere).
      */
     val lastModified: Long
 
@@ -27,8 +28,11 @@ sealed interface LibraryItem {
         override val lastModified: Long get() = file.lastModified()
     }
 
-    /** An extracted archive, browsed as one item (§8 Library). */
-    data class ArchiveItem(override val name: String, val directory: File) : LibraryItem {
+    /**
+     * A browsable directory: an extracted archive at the top level, or a
+     * subdirectory inside one (§8 Library). Tapping it lists its contents.
+     */
+    data class FolderItem(override val name: String, val directory: File) : LibraryItem {
         override val lastModified: Long get() = directory.lastModified()
     }
 }
@@ -36,7 +40,8 @@ sealed interface LibraryItem {
 /**
  * Maps the synchronized content directories to what the Library and Home
  * screens show (§8). The top level of each category lists plain files and one
- * item per extracted archive; an archive's contents are listed one level down.
+ * item per extracted archive; browsing lists immediate children only, so deep
+ * nesting simply costs one tap per level.
  *
  * Internal metadata is never listed (§6, §11: 24): a `<name>.hash` sidecar is
  * hidden while its file exists beside it, and ZIP markers (`<sha256>.hash`
@@ -58,7 +63,7 @@ object LibraryContent {
             .filter { !isInternalMetadata(it) }
             .map {
                 if (it.isDirectory) {
-                    LibraryItem.ArchiveItem(name = it.name, directory = it)
+                    LibraryItem.FolderItem(name = it.name, directory = it)
                 } else {
                     LibraryItem.FileItem(name = it.name, file = it)
                 }
@@ -67,18 +72,36 @@ object LibraryContent {
     }
 
     /**
-     * The files inside one extracted archive, as listed when it is tapped
-     * (§8 Library); tapping a contained file opens it (§7).
+     * What a browsed directory contains (§8 Library): its immediate children,
+     * each named with the bare file-system name — never a path. Tapping a
+     * contained file opens it (§7); tapping a contained directory lists it
+     * the same way, so nesting costs one tap per level.
      */
-    fun contents(archive: File): List<LibraryItem.FileItem> =
-        archive.walkTopDown()
-            .filter { it.isFile && !isInternalMetadata(it) }
-            .map { LibraryItem.FileItem(name = it.toRelativeString(archive), file = it) }
+    fun contents(directory: File): List<LibraryItem> =
+        directory.listFiles().orEmpty()
+            .filter { !isInternalMetadata(it) }
+            .map {
+                if (it.isDirectory) {
+                    LibraryItem.FolderItem(name = it.name, directory = it)
+                } else {
+                    LibraryItem.FileItem(name = it.name, file = it)
+                }
+            }
             .sortedBy { it.name.lowercase() }
-            .toList()
+
+    /**
+     * One level up from a browsed directory, or null when it already is the
+     * category's top level (the "Back" affordance, §8 Library).
+     */
+    fun parent(of: LibraryItem.FolderItem, layout: ContentLayout, category: Category): LibraryItem.FolderItem? {
+        val parent = of.directory.parentFile ?: return null
+        val root = layout.dirFor(category)
+        if (parent.path != root.path) return LibraryItem.FolderItem(parent.name, parent)
+        return null
+    }
 
     private fun isInternalMetadata(file: File): Boolean {
-        if (!file.isFile) return false // an archive directory is never metadata
+        if (!file.isFile) return false // a browsable directory is never metadata
         if (!file.name.endsWith(ContentLayout.SIDECAR_SUFFIX)) return false
         if (markerPattern.matches(file.name)) return true // ZIP marker
         // A sidecar is hidden while its file exists beside it; a manifest file
