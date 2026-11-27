@@ -65,6 +65,9 @@ import eu.logophilia.hermes.sync.SyncOutcome
 import eu.logophilia.hermes.sync.SyncPhase
 import eu.logophilia.hermes.sync.SyncStatus
 import eu.logophilia.hermes.sync.WifiIndicator
+import eu.logophilia.hermes.ui.theme.IndicatorAmber
+import eu.logophilia.hermes.ui.theme.IndicatorBlue
+import eu.logophilia.hermes.ui.theme.IndicatorGreen
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -785,9 +788,8 @@ private fun AboutScreen(modifier: Modifier = Modifier) {
 // Status indicators (§8)
 // ---------------------------------------------------------------------------
 
-private val IndicatorGreen = Color(0xFF2E7D32)
-private val IndicatorAmber = Color(0xFFF9A825)
-private val IndicatorBlue = Color(0xFF1976D2)
+// The fixed indicator colors (green/amber/blue) live in ui/theme/IndicatorColors.kt
+// — the single place to tune their exact hex values.
 
 /**
  * The Wi-Fi indicator (§8): the Wi-Fi symbol on Home, rendered at the same
