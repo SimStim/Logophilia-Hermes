@@ -10,11 +10,22 @@ Follow-ups from the design review (2026-11-26). Split by repository.
   `Referer`. An explicit marker is an honest, stable contract and lets the API
   keep separately trackable download statistics for the mobile client
   (design outline §2). Until then the app spoofs `Referer: https://logophilia.eu/`.
-- [ ] **API key renewal.** When a request presents a key found in the retired-keys
-  list, respond with the `key_expired` error carrying `new_api_key` (design
-  outline §2), so installed apps can rotate their hardcoded key. Until this
-  exists, Hermes treats `403` as a plain authentication failure. Key rotation
-  happens only when necessary, not on a schedule.
+- [ ] **API key renewal — greeting-only channel.** Deliver key updates exclusively
+  through the greeting endpoint (`GET /`): when the presented key is found on
+  the server's retired-keys list, the greeting responds with the `key_expired`
+  error carrying `new_api_key`. Every other endpoint keeps the strict
+  single-key check and answers expired keys with plain `403`. Benefits:
+  fewer API changes (renewal logic in one controller only); the website never
+  calls the greeting, so a replacement key can never be disclosed to web
+  clients by mistake; and the app already probes the greeting on every
+  trigger event (spec §8), so it always receives a fresh key before any sync
+  traffic. App-side consequence: the trigger flow becomes network check →
+  greeting probe (reachability + optional key renewal) → sync attempt, and
+  the old "retry the original request once" rule becomes unnecessary — a key
+  rotated mid-sync simply fails that attempt and renews at the next probe.
+  Supersedes SPECIFICATION.md §3.5 (amend the spec when convenient). Until
+  this exists, Hermes treats `403` as a plain authentication failure. Key
+  rotation happens only when necessary, not on a schedule.
 - [ ] **Empty file list status.** `/freeloot` currently answers an empty downloads
   folder with `status: "error"` and `freeloot: []`. Return `status: "success"`
   instead, so clients can distinguish a deliberate empty manifest from a
