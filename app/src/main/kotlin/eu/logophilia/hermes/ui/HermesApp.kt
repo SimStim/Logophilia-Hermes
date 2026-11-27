@@ -6,11 +6,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -24,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,14 +47,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import eu.logophilia.hermes.BuildConfig
@@ -130,9 +124,17 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
                         selected = current == section,
                         onClick = { current = section },
                         icon = {
+                            // §8: the bottom navigation's Sync icon plays the
+                            // rotation animation while a synchronization runs
+                            // and stays neutral otherwise, so sync activity is
+                            // visible from every tab.
+                            val rotation = rememberSyncRotation(
+                                animate = section == Section.Sync && status.running,
+                            )
                             Icon(
                                 painterResource(section.iconRes),
                                 contentDescription = stringResource(section.labelRes),
+                                modifier = Modifier.rotate(rotation),
                             )
                         },
                         label = { Text(stringResource(section.labelRes)) },
@@ -149,7 +151,6 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
                 status = status,
                 wifi = wifi,
                 onWifiTap = { showWifiPopup = true },
-                onSyncTap = { showSyncPopup = true },
                 onOpenCategory = {
                     libraryCategory = it.name
                     current = Section.Library
@@ -171,6 +172,7 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
             Section.Sync -> SyncScreen(
                 coordinator = coordinator,
                 status = status,
+                onSyncTap = { showSyncPopup = true },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -373,7 +375,6 @@ private fun HomeScreen(
     status: SyncStatus,
     wifi: WifiIndicator,
     onWifiTap: () -> Unit,
-    onSyncTap: () -> Unit,
     onOpenCategory: (Category) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -399,17 +400,12 @@ private fun HomeScreen(
             modifier = Modifier.size(120.dp),
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            WifiIndicatorDot(
-                state = wifi,
-                onClick = onWifiTap,
-            )
-            SyncGlyph(
-                status = status,
-                large = false,
-                onClick = onSyncTap,
-            )
-        }
+        // §8: Home shows the Wi-Fi indicator as a large symbol — the same
+        // size as the synchronization symbol on the Sync page — and no
+        // separate sync symbol and no colored status circle: sync status
+        // lives in the bottom navigation's animated Sync icon and on the
+        // Sync page; each indicator has exactly one visual home.
+        WifiSymbol(state = wifi, onClick = onWifiTap)
         Spacer(Modifier.height(16.dp))
         Text(
             text = home?.let {
@@ -521,6 +517,7 @@ private fun LibraryScreen(
 private fun SyncScreen(
     coordinator: SyncCoordinator,
     status: SyncStatus,
+    onSyncTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val tick = rememberTickSeconds()
@@ -531,8 +528,7 @@ private fun SyncScreen(
     ) {
         SyncGlyph(
             status = status,
-            large = true,
-            onClick = {},
+            onClick = onSyncTap,
         )
         Spacer(Modifier.height(12.dp))
         Text(text = syncStateText(status), style = MaterialTheme.typography.titleMedium)
@@ -621,9 +617,15 @@ private val IndicatorGreen = Color(0xFF2E7D32)
 private val IndicatorAmber = Color(0xFFF9A825)
 private val IndicatorBlue = Color(0xFF1976D2)
 
-/** The Wi-Fi indicator: a compact dot whose color encodes reachability (§8). */
+/**
+ * The Wi-Fi indicator (§8): the Wi-Fi symbol on Home, rendered at the same
+ * size as the Sync page's synchronization symbol; its color encodes
+ * reachability — red without a validated unmetered network, amber when the
+ * greeting did not answer successfully, green on success, neutral only
+ * before the very first probe. Tapping it opens the detail popup.
+ */
 @Composable
-private fun WifiIndicatorDot(state: WifiIndicator, onClick: () -> Unit) {
+private fun WifiSymbol(state: WifiIndicator, onClick: () -> Unit) {
     val color = when (state) {
         WifiIndicator.NEUTRAL -> MaterialTheme.colorScheme.outline
         WifiIndicator.RED -> MaterialTheme.colorScheme.error
@@ -636,23 +638,25 @@ private fun WifiIndicatorDot(state: WifiIndicator, onClick: () -> Unit) {
         WifiIndicator.AMBER -> stringResource(R.string.wifi_desc_amber)
         WifiIndicator.GREEN -> stringResource(R.string.wifi_desc_green)
     }
-    Box(
+    Icon(
+        painter = painterResource(R.drawable.ic_wifi),
+        contentDescription = description,
+        tint = color,
         modifier = Modifier
-            .size(16.dp)
-            .semantics { contentDescription = description }
-            .clip(CircleShape)
-            .background(color)
+            .size(48.dp)
             .clickable(onClick = onClick),
     )
 }
 
 /**
- * The synchronization indicator: the two-arrow circular sync symbol (§8).
- * Blue while the manifest request waits, green animated while content flows,
- * green static on success, red on failure, neutral before the first attempt.
+ * The synchronization indicator: the two-arrow circular sync symbol (§8),
+ * the only color-coded sync indicator in the app — blue while the manifest
+ * request waits, green animated while content flows, green static on success,
+ * red on failure, neutral before the first attempt. Tapping it opens the
+ * sync detail popup.
  */
 @Composable
-private fun SyncGlyph(status: SyncStatus, large: Boolean, onClick: () -> Unit) {
+private fun SyncGlyph(status: SyncStatus, onClick: () -> Unit) {
     val color = when {
         status.running && status.phase == SyncPhase.MANIFEST_REQUESTED -> IndicatorBlue
         status.running -> IndicatorGreen
@@ -661,7 +665,21 @@ private fun SyncGlyph(status: SyncStatus, large: Boolean, onClick: () -> Unit) {
         else -> MaterialTheme.colorScheme.outline
     }
     val animated = status.running && status.phase != SyncPhase.MANIFEST_REQUESTED
-    val rotation = if (animated) {
+    Icon(
+        painter = painterResource(R.drawable.ic_tab_sync),
+        contentDescription = syncStateDescription(status),
+        tint = color,
+        modifier = Modifier
+            .size(48.dp)
+            .rotate(rememberSyncRotation(animated))
+            .clickable(onClick = onClick),
+    )
+}
+
+/** Continuous 0→360° rotation while [animate] holds; 0 otherwise (§8). */
+@Composable
+private fun rememberSyncRotation(animate: Boolean): Float =
+    if (animate) {
         rememberInfiniteTransition(label = "sync-rotation").animateFloat(
             initialValue = 0f,
             targetValue = 360f,
@@ -674,14 +692,3 @@ private fun SyncGlyph(status: SyncStatus, large: Boolean, onClick: () -> Unit) {
     } else {
         0f
     }
-    val size = if (large) 48.dp else 24.dp
-    Icon(
-        painter = painterResource(R.drawable.ic_tab_sync),
-        contentDescription = syncStateDescription(status),
-        tint = color,
-        modifier = Modifier
-            .size(size)
-            .rotate(rotation)
-            .clickable(onClick = onClick),
-    )
-}
