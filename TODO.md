@@ -39,8 +39,14 @@ Follow-ups from the design review (2026-11-26). Split by repository.
 
 ## Hermes (this repo)
 
-- [ ] **Replace Referer spoof with client marker before public launch.** Depends on
-  the matching API change above. Development uses the spoof; do not ship it.
+- [x] **Replace Referer spoof with client marker before public launch.** Done
+  2026-11-27, after the matching API change (CorsMiddleware exempts
+  `X-Client: eu.logophilia.hermes`, matched by exact value). A single
+  interceptor in `LogophiliaApi.kt` adds the marker plus the informational
+  `X-Client-Version` to every request; the spoofed-`Referer` interceptor is
+  deleted, and no `Origin`, `Referer`, or browser-like `User-Agent` is ever
+  sent. `X-Api-key` and rate limiting unchanged. Fail-safe: a missing or
+  misspelled marker reverts to the old 403. Spec amended to v1.2 (§3).
 - [x] **Amend SPECIFICATION.md (v1.1)** — done 2026-11-27. Applied: §3.5 key
   renewal → greeting-only channel (criterion #16 reworded); §3 `/download`
   sends no `Content-Length` (chunked; client relies on SHA-256); §4/§5

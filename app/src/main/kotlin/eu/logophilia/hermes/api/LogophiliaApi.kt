@@ -1,9 +1,9 @@
 package eu.logophilia.hermes.api
 
+import eu.logophilia.hermes.BuildConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -53,11 +53,27 @@ internal fun isOctetStream(mediaType: MediaType?): Boolean =
     mediaType != null && mediaType.type == "application" && mediaType.subtype == "octet-stream"
 
 /**
+ * §3 Client marker: the identity headers of this application, added to every
+ * request by a single OkHttp interceptor. `X-Client` carries the exact value
+ * the API exempts from its browser CORS/Referer gate; `X-Client-Version` is
+ * informational (ignored by the server today). The marker replaces the former
+ * development-only spoofed Referer — the client declares what it is instead
+ * of impersonating the website, so no Origin, Referer, or browser-like
+ * User-Agent is ever faked. A missing or misspelled marker reverts to the
+ * old 403 (§3 Authentication).
+ */
+internal fun Request.withClientMarkers(version: String): Request = newBuilder()
+    .header("X-Client", LogophiliaApi.CLIENT_MARKER)
+    .header("X-Client-Version", version)
+    .build()
+
+/**
  * The Logophilia API client (SPECIFICATION.md §3).
  *
  * Blocking methods; never call them on the Android main thread. Every request
- * carries the compiled-in API key (§3 Authentication). API keys are never
- * logged or exposed in diagnostic messages.
+ * carries the compiled-in API key (§3 Authentication) and the client marker
+ * (§3 Client marker). API keys are never logged or exposed in diagnostic
+ * messages.
  */
 class LogophiliaApi(
     private val apiKey: String,
@@ -75,7 +91,11 @@ class LogophiliaApi(
                     .build(),
             )
         }
-        .addInterceptor(DEVELOPMENT_ONLY_SPOOFED_REFERER)
+        // Declares the client on every request (§3 Client marker); this
+        // replaced the former development-only spoofed Referer.
+        .addInterceptor { chain ->
+            chain.proceed(chain.request().withClientMarkers(BuildConfig.VERSION_NAME))
+        }
         .build()
 
     /** GET / — the server-reachability probe for the Wi-Fi indicator (§8). */
@@ -224,29 +244,15 @@ class LogophiliaApi(
     companion object {
         const val DEFAULT_BASE_URL = "https://api.logophilia.eu"
 
+        /**
+         * The value of the X-Client header (§3 Client marker): the exact
+         * string the API's CORS middleware matches against.
+         */
+        const val CLIENT_MARKER = "eu.logophilia.hermes"
+
         /** Greeting and manifest are small JSON documents. */
         private const val MAX_JSON_BYTES = 4L * 1024 * 1024
 
         private const val DOWNLOAD_CHUNK_BYTES = 64 * 1024
-
-        /*
-         * =====================================================================
-         * DEVELOPMENT ONLY — SPOOFED REFERER. THE ONE PLACE THIS EXISTS.
-         * =====================================================================
-         * The API's CORS/Referer gate (§3) rejects any request without an
-         * Origin unless it carries a Referer from logophilia.eu, and the app
-         * sends neither by default. Until the API exempts an explicit client
-         * marker (TODO.md, both repositories), development and testing send
-         * the spoofed header below. DO NOT SHIP THE SPOOF: before public
-         * launch, replace this single interceptor with the honest client
-         * marker (SPECIFICATION.md §3, TODO.md).
-         */
-        private val DEVELOPMENT_ONLY_SPOOFED_REFERER = Interceptor { chain ->
-            chain.proceed(
-                chain.request().newBuilder()
-                    .header("Referer", "https://logophilia.eu/")
-                    .build(),
-            )
-        }
     }
 }

@@ -1,15 +1,18 @@
 # Logophilia Hermes — Specification
 
-**Version 1.1 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. v1.1 folds in the decisions made after
+**Version 1.2 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.2 folds in the decision made after
+v1.1: the app identifies itself with the `X-Client` marker that the API
+exempts from its browser CORS/Referer gate (§3), replacing the former
+development-only `Referer` spoof. v1.1 folded in the decisions made after
 v1.0: greeting-only key renewal (§3.5), no `Content-Length` on `/download`
 (§3), incremental per-file commit with a per-commit network-gate re-check
 (§4, §5), acceptance of temporarily-not-metered networks (§4), indicator
 consolidation and a hierarchical Library (§8), image MIME types with a
 generic no-handler dialog (§7), bundled fonts and externalized user-facing
 strings (§8). Cross-repository follow-ups live in `TODO.md`. The API contract
-in §3 was verified against `SimStim/Logophilia-API` at commit `7994618`;
-re-verify if the API changes.
+in §3 was verified against `SimStim/Logophilia-API` at commit `5f6e946`
+(the client-marker exemption); re-verify if the API changes.
 
 ## 1. Purpose and scope
 
@@ -72,15 +75,27 @@ Auth failures: `401` (key missing) and `403` (key invalid), answered as
 `{"status":"error","message":"..."}`. Until key renewal exists (§3.5), a `403`
 is a plain authentication failure: report it and stop. No retry loops.
 
-### CORS / Referer gate
+### Client marker
 
-The API currently rejects any request without an `Origin` header unless it
-carries a `Referer` from `logophilia.eu`. The app sends neither by default.
+Native clients are exempt from the browser-oriented CORS/Referer gate: the
+API recognizes the reserved marker header `X-Client: eu.logophilia.hermes`
+(exact value) and skips its CORS and Referer checks for such requests. The
+marker is not CORS-safelisted, so a web page cannot attach it to a simple
+request.
 
-- During development and testing, the app sends the spoofed header
-  `Referer: https://logophilia.eu/`.
-- Before public launch, this spoof is replaced by an explicit client marker
-  exempted server-side (see `TODO.md`). Do not ship the spoof.
+- Every request carries `X-Client: eu.logophilia.hermes` plus the
+  informational `X-Client-Version` header (the application version; ignored
+  by the server today), both added by a single OkHttp interceptor.
+- The client declares what it is instead of impersonating the website: no
+  `Origin`, `Referer`, or browser-like `User-Agent` is ever sent.
+- Authentication and rate limiting are unchanged: `X-Api-key` is still
+  required with every request (§3 Authentication), and exempted requests
+  remain rate-limited.
+- Fail-safe: a missing or misspelled marker reverts to the old behavior —
+  the API answers `403`, which the app reports as a plain authentication
+  failure. No partial states.
+- The API sends no CORS response headers to the native client; the app
+  ignores any such response headers (native clients never needed them).
 
 ### Endpoints
 

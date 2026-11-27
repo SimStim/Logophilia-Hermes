@@ -99,8 +99,9 @@ which supersedes [design outline.md](design%20outline.md)).
   Library, Sync, About) as placeholders, bundled logos from `art/`,
   FileProvider stub, backup/extraction rules, secret and signing wiring.
 - **Milestone 2 — done.** API client (§3): OkHttp layer with the `X-Api-key`
-  header; the development `Referer` spoof isolated in one clearly marked
-  interceptor; `GET /freeloot` with strict manifest validation; `GET /download`
+  header and the `X-Client` client marker (the early development `Referer`
+  spoof was later replaced by the honest marker — see the Milestone 6 note);
+  `GET /freeloot` with strict manifest validation; `GET /download`
   with `Content-Type` sniffing; `GET /` greeting probe; INTERNET permission.
   Verified against the live API (curl and end-to-end unit tests, including a
   checksum round-trip); the manifest validator is unit-tested offline.
@@ -137,11 +138,11 @@ which supersedes [design outline.md](design%20outline.md)).
   minified, V2-signed release APK (verified with `apksigner`; stable
   `applicationId eu.logophilia.hermes`, minSdk 29, targetSdk 37, ~2.8 MB).
   The release build was installed and exercised on the emulator and behaves
-  like the debug build. ⚠️ **Until the API implements the explicit client
-  marker (TODO.md, both repositories), any release APK still carries the
-  development `Referer` spoof and must not be distributed publicly** — the
-  spoof is replaced by deleting the single marked interceptor in
-  `LogophiliaApi.kt`.
+  like the debug build. The development `Referer` spoof that guarded early
+  testing was removed on 2026-11-27, after the API implemented the client
+  marker exemption (TODO.md, both repositories): every request now declares
+  the app honestly with `X-Client: eu.logophilia.hermes` (§3), release
+  builds carry no spoofed headers, and the distribution ban is lifted.
 - All milestones complete. Remaining cross-repository work is in `TODO.md`.
 - **Milestone 7 (v1.1 amendments) — done.** Spec v1.1 folded into the app:
   the network gate also accepts `TEMPORARILY_NOT_METERED` and is re-checked
