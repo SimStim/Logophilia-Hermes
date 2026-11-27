@@ -41,3 +41,14 @@ Follow-ups from the design review (2026-11-26). Split by repository.
 
 - [ ] **Replace Referer spoof with client marker before public launch.** Depends on
   the matching API change above. Development uses the spoof; do not ship it.
+- [ ] **Amend SPECIFICATION.md** with the decisions made after v1.0: §3.5 key
+  renewal moves to the greeting-only channel (see the API item above;
+  criterion #16 reworded accordingly); §3 documents that `/download` sends
+  no `Content-Length` (chunked transfer — found in the M2 live check), so
+  the client relies on SHA-256, not on length.
+- [ ] **Formal acceptance pass on a physical device** (spec §11, 24 criteria).
+  Needs a real Wi-Fi phone; the engine logic is already covered by 78 tests.
+  Uninstall the debug build before installing the first release-signed APK
+  (signature change). Includes the states only visible during a real sync:
+  blue/green sync indicator, amber Wi-Fi state, populated Library and
+  recently-added lists, cooldown countdown on the Manual Sync button.
