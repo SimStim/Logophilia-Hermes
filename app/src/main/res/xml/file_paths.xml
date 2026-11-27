@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider path configuration (SPECIFICATION.md §7). Stub for Milestone 1:
+  exposes the app-private files root so external applications can open
+  synchronized content by content URI once file opening is implemented.
+  Synchronized content lives under files/ (Books/, Music/, Documents/, Other/).
+-->
+<paths>
+    <files-path
+        name="content_root"
+        path="." />
+</paths>

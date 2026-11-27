@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher foreground: the light logo inset into the adaptive-icon safe
+     zone. A dedicated drawable is used (not the theme-switching pair) so the
+     launcher icon is deterministic. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/app_logo_light"
+    android:insetBottom="25%"
+    android:insetLeft="25%"
+    android:insetRight="25%"
+    android:insetTop="25%" />

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- XML theme hosting the Compose shell; all real theming happens in
+         Compose (HermesTheme follows the system light/dark setting, §8). -->
+    <style name="Theme.Hermes" parent="android:Theme.DeviceDefault.DayNight.NoActionBar" />
+</resources>

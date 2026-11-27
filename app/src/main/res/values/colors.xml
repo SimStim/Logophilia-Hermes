@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher icon background: white, so the black-on-transparent light
+         logo (art/logo-light.png) reads on any home screen. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>
