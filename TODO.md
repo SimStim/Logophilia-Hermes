@@ -41,11 +41,65 @@ Follow-ups from the design review (2026-11-26). Split by repository.
 
 - [ ] **Replace Referer spoof with client marker before public launch.** Depends on
   the matching API change above. Development uses the spoof; do not ship it.
-- [ ] **Amend SPECIFICATION.md** with the decisions made after v1.0: §3.5 key
-  renewal moves to the greeting-only channel (see the API item above;
-  criterion #16 reworded accordingly); §3 documents that `/download` sends
-  no `Content-Length` (chunked transfer — found in the M2 live check), so
-  the client relies on SHA-256, not on length.
+- [ ] **Amend SPECIFICATION.md (batch, v1.1).** Fold all post-v1.0 decisions in one
+  pass once the open decisions below land: §3.5 key renewal → greeting-only
+  channel (criterion #16 reworded); §3 `/download` sends no `Content-Length`
+  (chunked — found in the M2 live check; client relies on SHA-256, not
+  length); §4/§5 incremental per-file commit; §8 indicator consolidation +
+  hierarchical Library; §8 bundled fonts (EB Garamond body, Comfortaa
+  headings, OFL license files included).
+- [ ] **[needs decision] TEMPORARILY_NOT_METERED.** Observed in the emulator: the
+  gate requires `NET_CAPABILITY_NOT_METERED`, so a cellular link set to
+  "temporarily not metered" is refused — expected under the current spec
+  (guaranteed-unmetered rule). Options: (a) keep strict, or (b) accept
+  `TEMPORARILY_NOT_METERED` as qualifying since it never bills the user,
+  paired with re-checking the gate before each file commit (natural with the
+  incremental-commit change) so a mid-sync flip back to metered pauses
+  further commits. Ed's call, then spec amendment.
+- [ ] **Incremental per-file commit (spec §4/§5 + engine).** Today an attempt is
+  all-or-nothing: everything lands in Temp and the Library updates only
+  after the complete sync. Change: commit each file (and each extracted ZIP
+  directory + marker) immediately after its own verification, then continue
+  with the next. On failure: keep everything already committed, perform no
+  deletions, mark the attempt failed. Obsolete-content cleanup and the
+  empty-manifest wipe still happen only after a fully successful attempt.
+  Side benefits: retries never re-download already-committed files
+  (previously discarded with Temp), and "recently added" updates in real
+  time while the sync runs.
+- [ ] **Indicator consolidation (spec §8 + UI).** Remove the big colored circle
+  next to the sync symbol — redundant duplicate of the same state. Color
+  coding lives on the big sync symbol on the Sync page only; the bottom-nav
+  Sync icon shows the rotating animation while a sync runs and stays neutral
+  otherwise, so sync status is visible from every tab. Wi-Fi state becomes a
+  compact dot or text line (placement: small dot on Home vs. Sync page only
+  — [needs decision]).
+- [ ] **Hierarchical Library (spec §8 + UI; reverses the M5 flattening).** Storage
+  is per spec (each OST extracts to `Music/<archive basename>/…`; two
+  different albums' `cover.jpg` files coexisting is correct, nothing should
+  overwrite). The bug is display-only: M5 flattened all files and used
+  relative paths as labels. New model: top level = plain files plus one item
+  per extracted archive, displayed as the archive basename without ".zip";
+  tapping an archive item lists its contained files (`.hash` markers and
+  sidecars never shown); tapping a contained file opens it. Recently-added
+  on Home lists top-level items only, never files inside archives.
+- [ ] **Bug: image files open nothing.** Tapping `cover.jpg` neither opened a
+  viewer nor showed the missing-handler dialog (silent failure). Diagnosed:
+  the extension→MIME table has no image types at all (`.jpg` falls through
+  to `application/octet-stream`), and the no-handler-without-suggestion path
+  apparently ends silently instead of showing a generic "no app found"
+  dialog. Fix: add image MIME types (jpg/jpeg/png/webp/gif) and guarantee
+  the generic fallback dialog for any unhandled MIME.
+- [ ] **Externalize all user-facing strings + author docs/STRINGS.md.** Move every
+  literal into `res/values/strings.xml` (including single words like
+  "New"/"Updated"/"Removed" and the category labels), use ICU `<plurals>`
+  for counts ("1 document" vs "N documents"), and write a short guide
+  documenting every string and the edit → `installDebug` workflow so
+  wording can be tuned by hand without a session.
+- [ ] **Bundle EB Garamond (body) and Comfortaa (headings).** Fully possible in a
+  standalone app; no user installation or permission involved. `res/font/` +
+  `FontFamily` wiring and theme update; include the OFL license files (the
+  license requires them when redistributing); both fonts are on Google
+  Fonts; small APK size increase. Spec §8 visual-identity amendment.
 - [ ] **Formal acceptance pass on a physical device** (spec §11, 24 criteria).
   Needs a real Wi-Fi phone; the engine logic is already covered by 78 tests.
   Uninstall the debug build before installing the first release-signed APK
