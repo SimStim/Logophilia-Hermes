@@ -62,7 +62,7 @@ internal fun isOctetStream(mediaType: MediaType?): Boolean =
 class LogophiliaApi(
     private val apiKey: String,
     private val baseUrl: String = DEFAULT_BASE_URL,
-) {
+) : SyncClient {
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -103,7 +103,7 @@ class LogophiliaApi(
      * @throws ApiException.Auth, ApiException.Server, ApiException.Transport
      *   or ManifestException, never an empty content list.
      */
-    fun fetchManifest(): List<ManifestEntry> {
+    override fun fetchManifest(): List<ManifestEntry> {
         val request = Request.Builder().url(url("/freeloot")).build()
         execute(request).use { response ->
             checkHttp(response)
@@ -125,7 +125,7 @@ class LogophiliaApi(
      * @throws ApiException.Download if the Content-Type is not
      *   application/octet-stream (a JSON error body arrives with HTTP 200).
      */
-    fun download(fileName: String, destination: File): DownloadedFile {
+    override fun download(fileName: String, destination: File): DownloadedFile {
         val request = Request.Builder()
             .url(url("/download").newBuilder().addQueryParameter("fileName", fileName).build())
             .build()
