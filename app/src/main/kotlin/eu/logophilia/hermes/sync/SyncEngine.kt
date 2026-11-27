@@ -9,6 +9,17 @@ import java.security.MessageDigest
 /** The five-minute cooldown between attempts, regardless of outcome (§4). */
 const val COOLDOWN_MILLIS = 5L * 60 * 1000
 
+/**
+ * Progress of a running synchronization, shown by the sync indicator (§8):
+ * blue while the manifest request waits for the server, green from receiving
+ * the manifest through downloads to the commit.
+ */
+enum class SyncPhase {
+    MANIFEST_REQUESTED,
+    TRANSFERRING,
+    COMMITTING,
+}
+
 /** A synchronization failure carrying a message fit for display (§8, §9). */
 class SyncException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -97,6 +108,17 @@ class SyncEngine(
     private var running = false
 
     /**
+     * Observes the progress of the running attempt (§8 Status indicators).
+     * Called on the engine's worker thread; set once at wiring time.
+     */
+    @Volatile
+    var phaseListener: ((SyncPhase) -> Unit)? = null
+
+    private fun phase(p: SyncPhase) {
+        phaseListener?.invoke(p)
+    }
+
+    /**
      * Attempts one synchronization (§4). Returns without any network traffic
      * when no qualifying network exists, when the cooldown is running, or
      * when an operation is already in flight.
@@ -140,13 +162,18 @@ class SyncEngine(
 
     private fun synchronize(): SyncOutcome = try {
         layout.createDirectories()
-        val entries = client.fetchManifest()          // Phase A
-            .distinctBy { it.name }                    // defensive: first entry wins
+        val entries = run {
+            phase(SyncPhase.MANIFEST_REQUESTED)       // §8: blue while the server waits
+            val fetched = client.fetchManifest()      // Phase A
+            phase(SyncPhase.TRANSFERRING)             // §8: green from here on
+            fetched.distinctBy { it.name }            // defensive: first entry wins
+        }
         val work = plan(entries)                      // Phase B
         val downloads = File(layout.temp, ContentLayout.TEMP_DOWNLOADS)
         val extracts = File(layout.temp, ContentLayout.TEMP_EXTRACT)
         downloadRequired(work, downloads)             // Phase C
         extractArchives(work, downloads, extracts)    // Phase D
+        phase(SyncPhase.COMMITTING)
         val removed = commit(work, downloads, extracts) // Phase E 1–3
         SyncOutcome.Success(added = work.addedCount, updated = work.updatedCount, removed = removed)
     } catch (e: Exception) {

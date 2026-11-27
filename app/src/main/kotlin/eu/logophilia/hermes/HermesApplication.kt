@@ -17,14 +17,21 @@ import eu.logophilia.hermes.sync.SyncEngine
  */
 class HermesApplication : Application() {
 
+    /** The private content root, shared by the engine and the UI (§6, §8). */
+    val contentLayout: ContentLayout by lazy { ContentLayout(filesDir) }
+
     val syncCoordinator: SyncCoordinator by lazy {
+        val api = LogophiliaApi(BuildConfig.API_KEY)
+        val gate = ConnectivityManagerGate(this)
         SyncCoordinator(
-            SyncEngine(
-                client = LogophiliaApi(BuildConfig.API_KEY),
-                layout = ContentLayout(filesDir),
+            engine = SyncEngine(
+                client = api,
+                layout = contentLayout,
                 store = SharedPreferencesSyncStore(this),
-                networkGate = ConnectivityManagerGate(this),
+                networkGate = gate,
             ),
+            networkGate = gate,
+            greeting = { api.probeGreeting() },
         )
     }
 

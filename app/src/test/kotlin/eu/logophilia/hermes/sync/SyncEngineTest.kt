@@ -443,4 +443,33 @@ class SyncEngineTest {
         assertEquals("deadbeef", File(layout.other, "release-notes.hash").readText())
         assertEquals(hashFile.sha256, File(layout.other, "release-notes.hash.hash").readText())
     }
+
+    @Test
+    fun `phases progress from manifest request through commit`() {
+        layout = before()
+        val phases = mutableListOf<SyncPhase>()
+        val engine = engine(FakeClient(FakeEntry("Book.epub", bytes("book"))))
+
+        engine.phaseListener = { phases += it }
+        val outcome = engine.attempt()
+
+        assertEquals(SyncOutcome.Success(added = 1, updated = 0, removed = 0), outcome)
+        assertEquals(
+            listOf(SyncPhase.MANIFEST_REQUESTED, SyncPhase.TRANSFERRING, SyncPhase.COMMITTING),
+            phases,
+        )
+    }
+
+    @Test
+    fun `no phases are signalled when the attempt is skipped`() {
+        layout = before()
+        val phases = mutableListOf<SyncPhase>()
+        val engine = engine(FakeClient(FakeEntry("Book.epub", bytes("book"))), gate = { false })
+
+        engine.phaseListener = { phases += it }
+        val outcome = engine.attempt()
+
+        assertEquals(SyncOutcome.Skipped.NoQualifyingNetwork, outcome)
+        assertTrue(phases.isEmpty())
+    }
 }
