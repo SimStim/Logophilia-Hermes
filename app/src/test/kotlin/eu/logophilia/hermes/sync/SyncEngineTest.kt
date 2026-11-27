@@ -472,4 +472,31 @@ class SyncEngineTest {
         assertEquals(SyncOutcome.Skipped.NoQualifyingNetwork, outcome)
         assertTrue(phases.isEmpty())
     }
+
+    @Test
+    fun `the network gate is re-checked before every file commit`() {
+        layout = before()
+        val book = FakeEntry("Book.epub", bytes("book"))
+        val track = FakeEntry("Track.opus", bytes("audio"))
+        val client = FakeClient(book, track)
+        var gateCalls = 0
+        // The gate flips back to metered once the first file is downloaded:
+        // the re-check before the second file's commit must refuse it.
+        val flipAfterFirstDownload: () -> Boolean = {
+            gateCalls++
+            if (client.downloads.contains("Book.epub")) false else true
+        }
+
+        val outcome = engine(client, flipAfterFirstDownload).attempt()
+
+        assertTrue("expected Failure, got $outcome", outcome is SyncOutcome.Failure)
+        assertEquals(NETWORK_GATE_LOST_MESSAGE, (outcome as SyncOutcome.Failure).message)
+        // preflight + one re-check before each of the two files' commits:
+        assertEquals(3, gateCalls)
+        // The second file never reached the network (§5 Phase C 1):
+        assertEquals(listOf("Book.epub"), client.downloads)
+        // Nothing was committed, nothing deleted, Temp discarded (§4, §5):
+        assertTrue(File(layout.books, "Book.epub").exists().not())
+        assertTrue(layout.temp.listFiles().isNullOrEmpty())
+    }
 }

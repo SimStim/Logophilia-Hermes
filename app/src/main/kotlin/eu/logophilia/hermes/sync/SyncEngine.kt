@@ -9,6 +9,10 @@ import java.security.MessageDigest
 /** The five-minute cooldown between attempts, regardless of outcome (§4). */
 const val COOLDOWN_MILLIS = 5L * 60 * 1000
 
+/** §5 Phase C 1: the per-commit gate re-check refused — the attempt stops. */
+internal const val NETWORK_GATE_LOST_MESSAGE =
+    "No longer on a validated unmetered network — synchronization stopped"
+
 /**
  * Progress of a running synchronization, shown by the sync indicator (§8):
  * blue while the manifest request waits for the server, green from receiving
@@ -226,6 +230,13 @@ class SyncEngine(
     /** Phase C — download all required files into Temp and verify each. */
     private fun downloadRequired(work: Work, downloads: File) {
         for (entry in work.required) {
+            // §5 Phase C 1: the gate is re-checked before every file commit —
+            // a "temporarily not metered" network may flip back mid-attempt
+            // (§4 Network gate). Stopping keeps committed work, deletes
+            // nothing, and marks the attempt failed (§5 Phase E).
+            if (!networkGate()) {
+                throw SyncException(NETWORK_GATE_LOST_MESSAGE)
+            }
             val downloaded = client.download(entry.name, File(downloads, entry.name))
             // The checksum applies to the complete original file content (§5);
             // size is re-checked too because /download is chunked and the

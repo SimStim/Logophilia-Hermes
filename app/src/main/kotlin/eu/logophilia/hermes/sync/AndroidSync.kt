@@ -3,6 +3,7 @@ package eu.logophilia.hermes.sync
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 
 /**
  * The persisted `lastSyncAttempt` timestamp in SharedPreferences — the only
@@ -31,10 +32,14 @@ class SharedPreferencesSyncStore(context: Context) : SyncStore {
 }
 
 /**
- * §4 Network gate: the active network must report NET_CAPABILITY_NOT_METERED
- * and NET_CAPABILITY_VALIDATED. Nothing is ever downloaded over a metered
- * connection. Accepted limitation (§4): a hotspot fed by someone else's
- * mobile data still appears unmetered; no finer client-side signal exists.
+ * §4 Network gate: the active network must report NET_CAPABILITY_VALIDATED and
+ * either NET_CAPABILITY_NOT_METERED or — API 30+ — the equally never-billing
+ * NET_CAPABILITY_TEMPORARILY_NOT_METERED. Nothing is ever downloaded over a
+ * metered connection. Because a "temporarily not metered" network may flip
+ * back to metered mid-transfer, the gate is re-checked before every file
+ * commit (§5 Phase C).
+ * Accepted limitation (§4): a hotspot fed by someone else's mobile data still
+ * appears unmetered; no finer client-side signal exists.
  */
 class ConnectivityManagerGate(context: Context) : () -> Boolean {
 
@@ -44,7 +49,13 @@ class ConnectivityManagerGate(context: Context) : () -> Boolean {
     override fun invoke(): Boolean {
         val network = connectivity?.activeNetwork ?: return false
         val capabilities = connectivity.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ||
+            (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                    capabilities.hasCapability(
+                        NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED,
+                    )
+                )
     }
 }
