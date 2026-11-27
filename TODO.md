@@ -49,58 +49,46 @@ Follow-ups from the design review (2026-11-26). Split by repository.
   indicator consolidation + hierarchical Library + recently-added top-level
   items; §7 image MIME types + generic no-handler dialog (criterion #26
   added); §8 bundled fonts and externalized strings; §8 copy/plurals.
-- [ ] **[decided: accept] TEMPORARILY_NOT_METERED.** The gate accepts
+- [x] **[decided: accept] TEMPORARILY_NOT_METERED.** The gate accepts
   `TEMPORARILY_NOT_METERED` alongside `NOT_METERED` (it never bills the
   user) and re-checks the gate before every file commit, so a mid-sync flip
   back to metered stops further commits while keeping what is already
-  committed. Spec §4/§5 already amended; implement in M7.
-- [ ] **Incremental per-file commit (spec §4/§5 + engine).** Today an attempt is
-  all-or-nothing: everything lands in Temp and the Library updates only
-  after the complete sync. Change: commit each file (and each extracted ZIP
-  directory + marker) immediately after its own verification, then continue
-  with the next. On failure: keep everything already committed, perform no
-  deletions, mark the attempt failed. Obsolete-content cleanup and the
-  empty-manifest wipe still happen only after a fully successful attempt.
-  Side benefits: retries never re-download already-committed files
-  (previously discarded with Temp), and "recently added" updates in real
-  time while the sync runs.
-- [ ] **Indicator consolidation (spec §8 + UI).** Remove the big colored circle
-  next to the sync symbol — redundant duplicate of the same state. Color
-  coding lives on the big sync symbol on the Sync page only; the bottom-nav
-  Sync icon shows the rotating animation while a sync runs and stays neutral
-  otherwise, so sync status is visible from every tab. [decided] The Wi-Fi
-  symbol stays on **Home**, rendered at the same size as the Sync page's
-  sync symbol (it was smaller before).
-- [ ] **Hierarchical Library (spec §8 + UI; reverses the M5 flattening).** Storage
-  is per spec (each OST extracts to `Music/<archive basename>/…`; two
-  different albums' `cover.jpg` files coexisting is correct, nothing should
-  overwrite). The bug is display-only: M5 flattened all files and used
-  relative paths as labels. New model: top level = plain files plus one item
-  per extracted archive, displayed as the archive basename without ".zip";
-  tapping an archive item lists its contained files (`.hash` markers and
-  sidecars never shown); tapping a contained file opens it. Recently-added
-  on Home lists top-level items only, never files inside archives.
-- [ ] **Bug: image files open nothing.** Tapping `cover.jpg` neither opened a
-  viewer nor showed the missing-handler dialog (silent failure). Diagnosed:
-  the extension→MIME table has no image types at all (`.jpg` falls through
-  to `application/octet-stream`), and the no-handler-without-suggestion path
-  apparently ends silently instead of showing a generic "no app found"
-  dialog. Fix: add image MIME types (jpg/jpeg/png/webp/gif) and guarantee
-  the generic fallback dialog for any unhandled MIME.
-- [ ] **Externalize all user-facing strings + author docs/STRINGS.md.** Move every
-  literal into `res/values/strings.xml` (including single words like
-  "New"/"Updated"/"Removed" and the category labels), use ICU `<plurals>`
-  for counts ("1 document" vs "N documents"), and write a short guide
-  documenting every string and the edit → `installDebug` workflow so
-  wording can be tuned by hand without a session.
-- [ ] **Bundle EB Garamond (body) and Comfortaa (headings).** Files already
-  fetched from Google Fonts and latin-subset with fonttools:
-  `app/src/main/res/font/ebgaramond.ttf`, `ebgaramond_italic.ttf`,
-  `comfortaa.ttf` — still fully variable (wght axes intact, ~600 KB total,
-  down from 1.8 MB); OFL license files staged in
-  `app/src/main/assets/licenses/`. Remaining: `FontFamily` wiring and theme
-  update (EB Garamond body, Comfortaa headings). Spec §8 amendment already
-  applied.
+  committed. Spec §4/§5 already amended; implemented in M7 (2026-11-27).
+- [x] **Incremental per-file commit (spec §4/§5 + engine).** Implemented in M7
+  (2026-11-27): each file (and each extracted ZIP directory + marker) commits
+  immediately after its own verification. On failure: everything already
+  committed is kept, no deletions, the attempt is marked failed. Obsolete-
+  content cleanup and the empty-manifest wipe happen only after a fully
+  successful attempt. Verified live on the emulator: an interrupted attempt
+  (SocketException) kept its committed files, and the retry downloaded only
+  the missing ones (7 + 16 = 23 items, zero re-downloads).
+- [x] **Indicator consolidation (spec §8 + UI).** Done in M7 (2026-11-27): the
+  colored circle and Home's separate sync symbol are gone; color coding lives
+  on the big sync symbol on the Sync page only (its tap opens the detail
+  popup); the bottom-nav Sync icon rotates while a sync runs and stays
+  neutral otherwise; the Wi-Fi symbol stays on Home at the Sync page symbol's
+  size (48 dp).
+- [x] **Hierarchical Library (spec §8 + UI; reverses the M5 flattening).**
+  Done in M7 (2026-11-27): top level = plain files plus one item per
+  extracted archive (basename sans ".zip"); tapping an archive lists its
+  contained files (markers/sidecars never shown); recently added lists
+  top-level items only, archive items timed by the extracted directory's
+  mtime. Verified live while a sync filled the Library.
+- [x] **Bug: image files open nothing.** Fixed in M7 (2026-11-27): image MIME
+  types added (jpg/jpeg/png/webp/gif) plus an image/* <queries> entry, and
+  every failed open now surfaces the dialog (generic "no application found"
+  with a Play search and Retry when no suggestion applies) — opening a file
+  never fails silently. Verified on the emulator: cover.jpg opens in Google
+  Photos; an epub without a reader shows the Moon+ Reader dialog.
+- [x] **Externalize all user-facing strings + author docs/STRINGS.md.** Done
+  in M7 (2026-11-27): every literal lives in `res/values/strings.xml`
+  (including "New"/"Updated"/"Removed" inside ICU `<plurals>` and the
+  category labels), and docs/STRINGS.md documents every string plus the
+  edit → `./gradlew installDebug` workflow.
+- [x] **Bundle EB Garamond (body) and Comfortaa (headings).** Done in M7
+  (2026-11-27): the latin-subset variable TTFs (wght axes intact) are wired
+  into the theme via `FontVariation` (EB Garamond body/label, Comfortaa
+  display/headline/title); OFL licenses ship in `app/src/main/assets/licenses/`.
 - [ ] **Formal acceptance pass on a physical device** (spec §11, 24 criteria).
   Needs a real Wi-Fi phone; the engine logic is already covered by 78 tests.
   Uninstall the debug build before installing the first release-signed APK
