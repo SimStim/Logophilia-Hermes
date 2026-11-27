@@ -5,6 +5,7 @@ import eu.logophilia.hermes.api.GreetingResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.util.concurrent.Executors
 
 /**
@@ -83,7 +84,20 @@ class SyncCoordinator(
     fun cooldownRemainingMillis(): Long = engine.cooldownRemainingMillis()
 
     private fun request() {
-        mutableStatus.value = mutableStatus.value.copy(running = true)
+        // §8: a new request shows the blue "waiting for the server" state at
+        // once. The phase of a previous attempt must not leak into it — the
+        // stale COMMITTING value otherwise paints the symbol green for a
+        // moment before the engine signals the manifest request. A trigger
+        // arriving while an attempt runs leaves the in-flight phase alone.
+        // The manifest response ends the blue state: only then does content
+        // flow and the symbol start spinning (§8 Status indicators).
+        mutableStatus.update { current ->
+            if (current.running) {
+                current
+            } else {
+                current.copy(running = true, phase = SyncPhase.MANIFEST_REQUESTED)
+            }
+        }
         executor.execute {
             // §8: the probe runs on the trigger events of §4 and is
             // independent of the sync cooldown.

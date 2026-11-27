@@ -98,6 +98,9 @@ private fun Category.labelRes(): Int = when (this) {
 fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
     var current by rememberSaveable { mutableStateOf(Section.Home) }
     var libraryCategory by rememberSaveable { mutableStateOf(Category.Books.name) }
+    // §8: the folder currently browsed inside the Library — hoisted here so
+    // Home's recently-added folder items can open the Library one level deep.
+    var libraryBrowse by remember { mutableStateOf<LibraryItem.FolderItem?>(null) }
     val status by coordinator.status.collectAsState()
     val wifi by coordinator.wifi.collectAsState()
     val wifiDetail by coordinator.wifiDetail.collectAsState()
@@ -145,6 +148,13 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
         },
     ) { innerPadding ->
         val category = Category.valueOf(libraryCategory)
+        // Every category selection lands at the category's top level (§8) —
+        // the chips, the Home quick access, and Home's recently added all
+        // route through this.
+        val selectCategory: (Category) -> Unit = { selected ->
+            libraryBrowse = null
+            libraryCategory = selected.name
+        }
         when (current) {
             Section.Home -> HomeScreen(
                 coordinator = coordinator,
@@ -152,9 +162,22 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
                 status = status,
                 wifi = wifi,
                 onWifiTap = { showWifiPopup = true },
-                onOpenCategory = {
-                    libraryCategory = it.name
+                onOpenCategory = { selected ->
+                    selectCategory(selected)
                     current = Section.Library
+                },
+                onOpenRecent = { category, item ->
+                    // §8 Home: a recent file opens in an external application
+                    // (§7); a recent archive opens the Library browsed one
+                    // level into it.
+                    when (item) {
+                        is LibraryItem.FileItem -> open(item.file)
+                        is LibraryItem.FolderItem -> {
+                            libraryCategory = category.name
+                            libraryBrowse = item
+                            current = Section.Library
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -163,8 +186,10 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
             Section.Library -> LibraryScreen(
                 contentLayout = contentLayout,
                 selected = category,
+                browse = libraryBrowse,
                 status = status,
-                onSelect = { libraryCategory = it.name },
+                onSelect = selectCategory,
+                onBrowse = { libraryBrowse = it },
                 onOpenFile = { file -> open(file) },
                 modifier = Modifier
                     .fillMaxSize()
@@ -433,6 +458,7 @@ private fun HomeScreen(
     wifi: WifiIndicator,
     onWifiTap: () -> Unit,
     onOpenCategory: (Category) -> Unit,
+    onOpenRecent: (Category, LibraryItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Content changes only through synchronization; every status change —
@@ -513,12 +539,16 @@ private fun HomeScreen(
             )
             LazyColumn {
                 items(recent) { (category, item) ->
+                    // §8 Home: recently-added items are tappable — a file opens
+                    // in an external application (§7), an archive opens the
+                    // Library browsed one level into it.
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { onOpenRecent(category, item) }
                             .padding(vertical = 4.dp),
                     )
                 }
@@ -542,14 +572,16 @@ private data class HomeData(
 private fun LibraryScreen(
     contentLayout: ContentLayout,
     selected: Category,
+    browse: LibraryItem.FolderItem?,
     status: SyncStatus,
     onSelect: (Category) -> Unit,
+    onBrowse: (LibraryItem.FolderItem?) -> Unit,
     onOpenFile: (File) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // §8: the directory currently being browsed — an extracted archive at the
-    // top level, or a subdirectory inside one; resets when the category changes.
-    val browsing = remember(selected) { mutableStateOf<LibraryItem.FolderItem?>(null) }
+    // §8: the browsed directory — an extracted archive at the top level, or a
+    // subdirectory inside one — is hoisted to the app shell, so Home's
+    // recently-added items can open the Library one level deep.
     Column(modifier = modifier.padding(16.dp)) {
         // Chips centered like on the Home page, with the same 8 dp spacing
         // between them (§8). Every tap returns to the chosen category's top
@@ -562,10 +594,7 @@ private fun LibraryScreen(
             Category.entries.forEach { category ->
                 FilterChip(
                     selected = category == selected,
-                    onClick = {
-                        browsing.value = null
-                        onSelect(category)
-                    },
+                    onClick = { onSelect(category) },
                     label = { Text(stringResource(category.labelRes())) },
                 )
             }
@@ -577,11 +606,11 @@ private fun LibraryScreen(
             initialValue = emptyList<LibraryItem>(),
             contentLayout,
             selected,
-            browsing.value,
+            browse,
             status,
         ) {
             value = withContext(Dispatchers.IO) {
-                val inside = browsing.value?.directory
+                val inside = browse?.directory
                 if (inside == null) {
                     LibraryContent.topLevel(contentLayout, selected)
                 } else {
@@ -589,18 +618,18 @@ private fun LibraryScreen(
                 }
             }
         }
-        if (browsing.value != null) {
+        if (browse != null) {
             // The back affordance: an arrow, left-justified with the list, on
             // a full-width row so the tap target is generous. It pops exactly
             // one level (§8 Library); tapping the active category chip above
             // returns to the top level from any depth in one tap.
-            val current = browsing.value
+            val current = browse
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
                         if (current != null) {
-                            browsing.value = LibraryContent.parent(current, contentLayout, selected)
+                            onBrowse(LibraryContent.parent(current, contentLayout, selected))
                         }
                     }
                     .padding(vertical = 8.dp),
@@ -631,7 +660,7 @@ private fun LibraryScreen(
                             .fillMaxWidth()
                             .clickable {
                                 when (item) {
-                                    is LibraryItem.FolderItem -> browsing.value = item
+                                    is LibraryItem.FolderItem -> onBrowse(item)
                                     is LibraryItem.FileItem -> onOpenFile(item.file)
                                 }
                             }
