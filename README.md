@@ -43,7 +43,9 @@ sufficient for synchronization.
   the previous attempt's outcome; the timestamp survives app restarts.
 - **Manifest-driven** — the remote manifest with SHA-256 checksums is
   authoritative; unchanged files are left untouched, new and changed files are
-  downloaded, verified, and only then committed.
+  downloaded, verified, and committed one by one (incremental per-file commit:
+  a failed attempt keeps what it already committed, and the network gate is
+  re-checked before every commit).
 - **Safe ZIP handling** — checksums are verified before extraction, ZIP Slip
   is prevented, and extraction limits guard against resource exhaustion.
 - **Transactional** — a failed or interrupted sync never leaves the user
@@ -141,3 +143,17 @@ which supersedes [design outline.md](design%20outline.md)).
   spoof is replaced by deleting the single marked interceptor in
   `LogophiliaApi.kt`.
 - All milestones complete. Remaining cross-repository work is in `TODO.md`.
+- **Milestone 7 (v1.1 amendments) — done.** Spec v1.1 folded into the app:
+  the network gate also accepts `TEMPORARILY_NOT_METERED` and is re-checked
+  before every file commit; incremental per-file commit (a failed attempt —
+  including a mid-attempt gate flip — keeps everything already committed, and
+  retries never re-download committed files); indicator consolidation (the
+  Wi-Fi symbol on Home at the Sync page symbol's size, color-coded sync status
+  only on the Sync page, a rotating bottom-nav Sync icon while a sync runs);
+  the hierarchical Library (one item per archive, browsed one level down;
+  recently added lists top-level items only); image MIME types and a
+  guaranteed "no application found" dialog so opening never fails silently;
+  every user-facing string externalized into `res/values/strings.xml` with ICU
+  plurals and documented in `docs/STRINGS.md`; and the bundled variable fonts
+  (EB Garamond body, Comfortaa headings) wired into the theme, OFL licenses
+  shipped in the APK.
