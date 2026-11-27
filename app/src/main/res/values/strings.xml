@@ -5,7 +5,7 @@
     in docs/STRINGS.md.
 -->
 <resources>
-    <string name="app_name">Logophilia Hermes</string>
+    <string name="app_name">Hermes</string>
 
     <!-- Bottom navigation tabs -->
     <string name="tab_home">Home</string>
