@@ -1,0 +1,17 @@
+# IDE / editor
+/.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Android / Gradle build outputs
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Kotlin
+.kotlin/
