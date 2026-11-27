@@ -21,6 +21,6 @@ import androidx.compose.ui.graphics.Color
  * app (backgrounds, text, chips, surfaces) follows the Material 3 color
  * scheme — on Android 12+ derived from the system wallpaper (HermesTheme).
  */
-val IndicatorGreen = Color(0xFF2E7D32)
-val IndicatorAmber = Color(0xFFF9A825)
-val IndicatorBlue = Color(0xFF1976D2)
+val IndicatorGreen = Color(0xFF36482e)
+val IndicatorAmber = Color(0xFFc8b273)
+val IndicatorBlue = Color(0xFF416392)
