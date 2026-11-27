@@ -63,6 +63,12 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/vnd.comicbook-rar" />
         </intent>
+        <!-- The app's own update package (§10): releases ride the free-loot
+             manifest into the Library; the package installer must resolve. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
     </queries>
 
     <application

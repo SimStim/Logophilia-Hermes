@@ -64,6 +64,10 @@ object OpenWith {
         "png" to "image/png",
         "webp" to "image/webp",
         "gif" to "image/gif",
+        // The app's own package (§10 update channel): releases ride the
+        // free-loot manifest into the Library, and ACTION_VIEW hands the
+        // package to Android's installer for the usual sideload confirmation.
+        "apk" to "application/vnd.android.package-archive",
     )
 
     /**
@@ -93,6 +97,9 @@ object OpenWith {
             mimeType == "text/html" -> "web browser"
             mimeType.startsWith("audio/") -> "audio player"
             mimeType.startsWith("image/") -> "image viewer"
+            // Only reached when no package installer resolves (§10) — on any
+            // stock Android the platform installer handles .apk directly.
+            mimeType == "application/vnd.android.package-archive" -> "app installer"
             mimeType == "application/epub+zip" ||
                 mimeType == "application/x-mobipocket-ebook" ||
                 mimeType == "application/vnd.amazon.ebook" ||

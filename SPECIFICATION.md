@@ -399,6 +399,7 @@ private filesystem paths are never exposed.
 | `.html`, `.htm` | browser |
 | `.pdf` | PDF reader |
 | `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif` | image viewer |
+| `.apk` | package installer (the §10 update channel) |
 | other | let Android choose |
 
 Use suitable MIME types and content URIs. Do not assume an application is
@@ -526,14 +527,26 @@ Invariants:
 ## 10. Distribution and release
 
 Ultimate distribution: Google Play Store (no account exists yet). Until
-then: a signed release APK, downloadable from the website for sideloading,
-plus a reproducible debug APK.
+then: a signed release APK, downloadable from the website for sideloading —
+and delivered through the free-loot manifest into every installed app's
+Library, which is the deliberate self-update channel described below — plus
+a reproducible debug APK.
 
 Play-ready hygiene from day one: stable `applicationId`, current target
 SDK, and a release keystore created early and backed up securely — Play
 requires a stable signing identity, and retrofitting one later is painful.
-No in-app update mechanism (out of scope; revisit if sideloading persists
-long-term).
+
+Update channel (deliberate, no automatic updater): a new release APK is
+published as free loot — dropped into the API's downloads folder, it enters
+the manifest like any content file and is synchronized into every installed
+app's Library (§5). Installing it is one tap: `.apk` maps to
+`application/vnd.android.package-archive`, and ACTION_VIEW hands the
+package to Android's installer with the usual sideload confirmation (§7);
+the signature must match the release keystore. Consequences, accepted:
+versioned file names keep releases distinguishable, and removing an old
+package from the server removes it from the Libraries at the next
+successful sync (§5). The update is never silent — the user taps the
+package and confirms the install.
 
 ## 11. Acceptance criteria
 
@@ -559,9 +572,9 @@ long-term).
 14. No unmetered network: no synchronization; indicator red.
 15. Unmetered network returns while the app is open: synchronization starts
     if the cooldown permits.
-16. Expired API key: the greeting probe delivers the replacement, it is
-    stored, and the subsequent requests succeed. *(Deferred until the API
-    implements key renewal.)*
+16. Expired API key: the greeting probe delivers the replacement (`usha`,
+    §3.5), it is stored, and the subsequent requests succeed. *(Testable:
+    the greeting-only renewal is live on the API.)*
 17. Unrecognized/revoked API key: authentication failure reported, no
     endless retries.
 18. EPUB without an installed reader: Moon+ Reader installation offered.
@@ -579,6 +592,9 @@ long-term).
     attempt.
 26. An image file opens in a viewer or shows the generic "no application
     found" dialog; opening a file never fails silently.
+27. The app package delivered through the manifest opens Android's package
+    installer (the §10 update channel); after an install, content, the
+    persisted API key, and the cooldown survive.
 
 ## 12. Development instructions
 

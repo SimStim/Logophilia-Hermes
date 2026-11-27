@@ -56,6 +56,11 @@ sufficient for synchronization.
   persists it immediately, so server-side rotations need no app release.
   The existing greet-first cycle is all the self-healing there is: a refused
   request simply fails, and the next permitted attempt greets first.
+- **Self-updating through the same channel** — the app package itself can be
+  published as free loot: it arrives in the Library like any content file,
+  and one tap installs it through Android's package installer (§7, §10).
+  No automatic updater, no silent installs — but no separate download trip
+  for an update, either.
 
 ## Building
 

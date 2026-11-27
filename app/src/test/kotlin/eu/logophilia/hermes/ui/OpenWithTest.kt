@@ -29,6 +29,15 @@ class OpenWithTest {
         assertEquals("image/png", OpenWith.mimeType("cover.png"))
         assertEquals("image/webp", OpenWith.mimeType("cover.webp"))
         assertEquals("image/gif", OpenWith.mimeType("cover.gif"))
+        // §10 update channel: the app's own package opens the installer.
+        assertEquals(
+            "application/vnd.android.package-archive",
+            OpenWith.mimeType("LogophiliaHermes-0.0.1.apk"),
+        )
+        assertEquals(
+            "application/vnd.android.package-archive",
+            OpenWith.mimeType("LogophiliaHermes-0.0.1.APK"),
+        )
     }
 
     @Test
@@ -80,6 +89,8 @@ class OpenWithTest {
         // "no application found" dialog with a store search instead.
         assertNull(OpenWith.suggestionFor("image/jpeg"))
         assertNull(OpenWith.suggestionFor("image/png"))
+        // The package installer is the OS, not a Play suggestion (§10).
+        assertNull(OpenWith.suggestionFor("application/vnd.android.package-archive"))
     }
 
     @Test
@@ -91,6 +102,12 @@ class OpenWithTest {
         assertEquals(
             "https://play.google.com/store/search?q=image+viewer&c=apps",
             OpenWith.searchUrlFor("image/jpeg"),
+        )
+        // Only reached when no installer resolves at all (§10) — on stock
+        // Android the platform installer always handles .apk.
+        assertEquals(
+            "https://play.google.com/store/search?q=app+installer&c=apps",
+            OpenWith.searchUrlFor("application/vnd.android.package-archive"),
         )
         assertTrue(OpenWith.searchUrlFor("application/octet-stream").endsWith("&c=apps"))
     }

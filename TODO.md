@@ -97,7 +97,7 @@ physical device (last item in the Hermes list).
   (2026-11-27): the latin-subset variable TTFs (wght axes intact) are wired
   into the theme via `FontVariation` (EB Garamond body/label, Comfortaa
   display/headline/title); OFL licenses ship in `app/src/main/assets/licenses/`.
-- [ ] **Formal acceptance pass on a physical device** (spec §11, 24 criteria).
+- [ ] **Formal acceptance pass on a physical device** (spec §11, 27 criteria).
   Needs a real Wi-Fi phone; the engine logic is already covered by 78 tests.
   Uninstall the debug build before installing the first release-signed APK
   (signature change). Includes the states only visible during a real sync:
