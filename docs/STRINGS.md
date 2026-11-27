@@ -67,7 +67,7 @@ different signing identity.
 | Name | Value | Where it appears |
 |---|---|---|
 | `library_empty` | Nothing here yet — synchronize to fill this category. | Library list when a category is empty |
-| `library_back` | Back | Button leaving an archive's content list |
+| `library_back` | Back | The back arrow's `contentDescription` when browsing inside an archive (the arrow icon replaces the word on screen) |
 
 ### Opening files with external applications (§7)
 
@@ -91,10 +91,10 @@ different signing identity.
 | `sync_state_contacting` | Contacting server… | While the manifest request waits (blue) |
 | `sync_state_receiving` | Receiving content… | While files are downloading (green animated) |
 | `sync_state_committing` | Committing… | While verified files commit / cleanup runs |
-| `sync_state_success` | Synchronized — %1$s · %2$s · %3$s | After success; joins the three plurals below |
-| `sync_count_new` (plurals) | 1 new / %d new | "new" count in the success summary |
-| `sync_count_updated` (plurals) | 1 updated / %d updated | "updated" count in the success summary |
-| `sync_count_removed` (plurals) | 1 removed / %d removed | "removed" count in the success summary |
+| `sync_state_success` | Synchronized | After success; its own line, with the three plurals below listed one per line (like the Home page's lists) |
+| `sync_count_new` (plurals) | 1 new / %d new | "new" count line under "Synchronized" |
+| `sync_count_updated` (plurals) | 1 updated / %d updated | "updated" count line under "Synchronized" |
+| `sync_count_removed` (plurals) | 1 removed / %d removed | "removed" count line under "Synchronized" |
 | `sync_state_failure` | Synchronization failed | After a failed attempt (details in the error card) |
 | `sync_last_attempt` | Last attempt: %1$s | Sync page, timestamp of the last attempt |
 | `sync_never_attempted` | Not synchronized yet | Sync page before any attempt |

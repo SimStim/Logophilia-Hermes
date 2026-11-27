@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import eu.logophilia.hermes.BuildConfig
@@ -203,7 +204,7 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
             title = { Text(stringResource(R.string.popup_sync_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(syncStateText(status))
+                    SyncStateLines(status = status, headingStyle = MaterialTheme.typography.bodyMedium)
                     val failure = status.lastOutcome as? SyncOutcome.Failure
                     if (failure != null) {
                         Text(
@@ -342,25 +343,72 @@ private fun wifiDetailText(wifi: WifiIndicator, detail: GreetingResult?): String
     WifiIndicator.GREEN -> stringResource(R.string.wifi_detail_green)
 }
 
+/**
+ * The synchronization state as displayed text (§8). While running it is a
+ * single line; after a successful attempt it reads as a vertical list —
+ * "Synchronized" on its own line, then the new/updated/removed counts, one
+ * ICU plural per line, like the Home page's lists (§8 Sync). With
+ * [centered] every line fills the width and centers, so even a wrapped line
+ * stays centered on the Sync page.
+ */
 @Composable
-private fun syncStateText(status: SyncStatus): String {
+private fun SyncStateLines(
+    status: SyncStatus,
+    headingStyle: TextStyle,
+    modifier: Modifier = Modifier,
+    centered: Boolean = false,
+) {
+    val lineModifier = if (centered) modifier.fillMaxWidth() else modifier
+    val alignment = if (centered) TextAlign.Center else null
     if (status.running) {
-        return when (status.phase) {
-            SyncPhase.MANIFEST_REQUESTED -> stringResource(R.string.sync_state_contacting)
-            SyncPhase.TRANSFERRING -> stringResource(R.string.sync_state_receiving)
-            SyncPhase.COMMITTING -> stringResource(R.string.sync_state_committing)
-            null -> stringResource(R.string.sync_state_contacting)
-        }
-    }
-    return when (val outcome = status.lastOutcome) {
-        is SyncOutcome.Success -> stringResource(
-            R.string.sync_state_success,
-            quantityString(R.plurals.sync_count_new, outcome.added),
-            quantityString(R.plurals.sync_count_updated, outcome.updated),
-            quantityString(R.plurals.sync_count_removed, outcome.removed),
+        Text(
+            text = when (status.phase) {
+                SyncPhase.MANIFEST_REQUESTED -> stringResource(R.string.sync_state_contacting)
+                SyncPhase.TRANSFERRING -> stringResource(R.string.sync_state_receiving)
+                SyncPhase.COMMITTING -> stringResource(R.string.sync_state_committing)
+                null -> stringResource(R.string.sync_state_contacting)
+            },
+            style = headingStyle,
+            textAlign = alignment,
+            modifier = lineModifier,
         )
-        is SyncOutcome.Failure -> stringResource(R.string.sync_state_failure)
-        else -> stringResource(R.string.sync_state_idle)
+        return
+    }
+    when (val outcome = status.lastOutcome) {
+        is SyncOutcome.Success -> Column(
+            modifier = lineModifier,
+            horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(stringResource(R.string.sync_state_success), style = headingStyle, textAlign = alignment)
+            Text(
+                quantityString(R.plurals.sync_count_new, outcome.added),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = alignment,
+            )
+            Text(
+                quantityString(R.plurals.sync_count_updated, outcome.updated),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = alignment,
+            )
+            Text(
+                quantityString(R.plurals.sync_count_removed, outcome.removed),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = alignment,
+            )
+        }
+        is SyncOutcome.Failure -> Text(
+            stringResource(R.string.sync_state_failure),
+            style = headingStyle,
+            textAlign = alignment,
+            modifier = lineModifier,
+        )
+        else -> Text(
+            stringResource(R.string.sync_state_idle),
+            style = headingStyle,
+            textAlign = alignment,
+            modifier = lineModifier,
+        )
     }
 }
 
@@ -503,11 +551,20 @@ private fun LibraryScreen(
     // top level, or a subdirectory inside one; resets when the category changes.
     val browsing = remember(selected) { mutableStateOf<LibraryItem.FolderItem?>(null) }
     Column(modifier = modifier.padding(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Chips centered like on the Home page (§8). Every tap returns to the
+        // chosen category's top level — including a tap on the already-active
+        // chip — so the top row always answers while an archive is browsed.
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
             Category.entries.forEach { category ->
                 FilterChip(
                     selected = category == selected,
-                    onClick = { onSelect(category) },
+                    onClick = {
+                        browsing.value = null
+                        onSelect(category)
+                    },
                     label = { Text(stringResource(category.labelRes())) },
                 )
             }
@@ -532,15 +589,27 @@ private fun LibraryScreen(
             }
         }
         if (browsing.value != null) {
-            // "Back" pops exactly one level; deep nesting costs one tap per
-            // level (§8 Library), ending at the category's top level.
+            // The back affordance: an arrow, left-justified with the list, on
+            // a full-width row so the tap target is generous. It pops exactly
+            // one level (§8 Library); tapping the active category chip above
+            // returns to the top level from any depth in one tap.
             val current = browsing.value
-            TextButton(onClick = {
-                if (current != null) {
-                    browsing.value = LibraryContent.parent(current, contentLayout, selected)
-                }
-            }) {
-                Text(stringResource(R.string.library_back))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        if (current != null) {
+                            browsing.value = LibraryContent.parent(current, contentLayout, selected)
+                        }
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_back),
+                    contentDescription = stringResource(R.string.library_back),
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
         if (items.isEmpty()) {
@@ -595,12 +664,13 @@ private fun SyncScreen(
             onClick = onSyncTap,
         )
         Spacer(Modifier.height(12.dp))
-        // fillMaxWidth + centered so a wrapped summary line centers too (§8).
-        Text(
-            text = syncStateText(status),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
+        // The success summary reads as a vertical list (§8 Sync); the page's
+        // centering keeps every line centered, including wrapped ones.
+        SyncStateLines(
+            status = status,
+            headingStyle = MaterialTheme.typography.titleMedium,
             modifier = Modifier.fillMaxWidth(),
+            centered = true,
         )
         Spacer(Modifier.height(8.dp))
         val lastAttempt = coordinator.lastSyncAttemptMillis()
