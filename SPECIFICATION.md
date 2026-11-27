@@ -214,8 +214,8 @@ For each manifest entry, compare against local content:
   `<name>.hash` (stored in the same directory, containing the known
   checksum) matches the manifest `sha256`. If the sidecar is missing while
   the file exists, hash the file once, write the sidecar, then compare
-  (self-heal; normally never happens because sidecars are written from the
-  manifest value during commit, so no hashing is performed in practice).
+  (self-heal; in normal operation this never occurs, because sidecars are
+  written from the manifest value after a successful download verification).
 - ZIP file: current ⟺ the extracted directory (§6) contains a marker file
   named `<sha256>.hash` with the manifest's checksum for that ZIP. The
   marker replaces the original archive, which is never retained after
@@ -226,9 +226,11 @@ For each manifest entry, compare against local content:
 
 Download all required new or modified files into Temp. For each file:
 download completely, compute SHA-256, compare with the manifest, reject on
-mismatch. Never overwrite a valid existing file with an unverified download.
-If any required download fails, the attempt fails: retain existing local
-content, discard Temp, perform no destructive cleanup.
+mismatch. This verification is the only hashing a synchronization performs;
+unchanged content is never re-hashed (§ Phase B). Never overwrite a valid
+existing file with an unverified download. If any required download fails,
+the attempt fails: retain existing local content, discard Temp, perform no
+destructive cleanup.
 
 ### Phase D — ZIP processing
 
