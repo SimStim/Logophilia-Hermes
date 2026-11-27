@@ -15,3 +15,10 @@ captures/
 
 # Kotlin
 .kotlin/
+
+# Local configuration & secrets (never commit)
+local.properties
+secrets.properties
+keystore.properties
+*.jks
+*.keystore
