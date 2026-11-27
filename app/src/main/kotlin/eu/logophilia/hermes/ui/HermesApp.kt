@@ -285,7 +285,7 @@ private fun MissingHandlerDialog(
 @Composable
 private fun missingHandlerText(suggestion: InstallSuggestion?): String =
     if (suggestion != null) {
-        stringResource(R.string.open_missing_with_suggestion, suggestion.appName)
+        stringResource(R.string.open_missing_with_suggestion, stringResource(suggestion.appNameRes))
     } else {
         stringResource(R.string.open_missing_generic)
     }
@@ -293,10 +293,19 @@ private fun missingHandlerText(suggestion: InstallSuggestion?): String =
 @Composable
 private fun installButtonText(suggestion: InstallSuggestion?): String =
     if (suggestion != null) {
-        stringResource(R.string.open_install, suggestion.appName)
+        stringResource(R.string.open_install, stringResource(suggestion.appNameRes))
     } else {
         stringResource(R.string.open_search)
     }
+
+/**
+ * An ICU plural as display text (§8 User-facing copy): "1 document" vs
+ * "N documents". The count is passed both as the quantity selector and as the
+ * pattern argument.
+ */
+@Composable
+private fun quantityString(pluralsRes: Int, count: Int): String =
+    LocalContext.current.resources.getQuantityString(pluralsRes, count, count)
 
 /** Re-composes once per second while its screen is visible. */
 @Composable
@@ -324,11 +333,11 @@ private fun wifiDetailText(wifi: WifiIndicator, detail: GreetingResult?): String
         R.string.wifi_detail_amber,
         detail?.let { result ->
             when (result) {
-                GreetingResult.UNREACHABLE -> "unreachable"
-                GreetingResult.AUTH_REJECTED -> "authentication rejected"
-                else -> "server error"
+                GreetingResult.UNREACHABLE -> stringResource(R.string.wifi_reason_unreachable)
+                GreetingResult.AUTH_REJECTED -> stringResource(R.string.wifi_reason_auth)
+                else -> stringResource(R.string.wifi_reason_server)
             }
-        } ?: "unreachable",
+        } ?: stringResource(R.string.wifi_reason_unreachable),
     )
     WifiIndicator.GREEN -> stringResource(R.string.wifi_detail_green)
 }
@@ -346,9 +355,9 @@ private fun syncStateText(status: SyncStatus): String {
     return when (val outcome = status.lastOutcome) {
         is SyncOutcome.Success -> stringResource(
             R.string.sync_state_success,
-            outcome.added,
-            outcome.updated,
-            outcome.removed,
+            quantityString(R.plurals.sync_count_new, outcome.added),
+            quantityString(R.plurals.sync_count_updated, outcome.updated),
+            quantityString(R.plurals.sync_count_removed, outcome.removed),
         )
         is SyncOutcome.Failure -> stringResource(R.string.sync_state_failure)
         else -> stringResource(R.string.sync_state_idle)
@@ -411,7 +420,12 @@ private fun HomeScreen(
         Spacer(Modifier.height(16.dp))
         Text(
             text = home?.let {
-                stringResource(R.string.home_counts, it.books, it.albums, it.documents)
+                stringResource(
+                    R.string.home_counts,
+                    quantityString(R.plurals.home_count_books, it.books),
+                    quantityString(R.plurals.home_count_albums, it.albums),
+                    quantityString(R.plurals.home_count_documents, it.documents),
+                )
             } ?: stringResource(R.string.home_nothing_yet),
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center,

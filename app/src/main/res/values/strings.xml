@@ -1,23 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Every user-facing string of the application (SPECIFICATION.md §8,
+    "User-facing copy"). The inventory and the editing workflow are documented
+    in docs/STRINGS.md.
+-->
 <resources>
     <string name="app_name">Logophilia Hermes</string>
+
+    <!-- Bottom navigation tabs -->
     <string name="tab_home">Home</string>
     <string name="tab_library">Library</string>
     <string name="tab_sync">Sync</string>
     <string name="tab_about">About</string>
 
+    <!-- Content category labels (§8 Library) -->
     <string name="category_books">Books</string>
     <string name="category_music">Music</string>
     <string name="category_documents">Documents</string>
     <string name="category_other">Other</string>
 
-    <string name="home_counts">%1$d books · %2$d albums · %3$d documents</string>
+    <!-- Home (§8): counts use ICU plurals, joined by home_counts -->
+    <plurals name="home_count_books">
+        <item quantity="one">1 book</item>
+        <item quantity="other">%d books</item>
+    </plurals>
+    <plurals name="home_count_albums">
+        <item quantity="one">1 album</item>
+        <item quantity="other">%d albums</item>
+    </plurals>
+    <plurals name="home_count_documents">
+        <item quantity="one">1 document</item>
+        <item quantity="other">%d documents</item>
+    </plurals>
+    <string name="home_counts">%1$s · %2$s · %3$s</string>
     <string name="home_recently_added">Recently added</string>
     <string name="home_nothing_yet">Nothing synchronized yet.</string>
 
+    <!-- Library (§8) -->
     <string name="library_empty">Nothing here yet — synchronize to fill this category.</string>
     <string name="library_back">Back</string>
 
+    <!-- Opening files with external applications (§7) -->
     <string name="open_missing_title">No app can open this</string>
     <string name="open_missing_with_suggestion">No application for this file type is installed. %1$s can open it.</string>
     <string name="open_missing_generic">No installed application can open this file.</string>
@@ -25,12 +48,27 @@
     <string name="open_search">Search on Google Play</string>
     <string name="open_retry">Retry</string>
     <string name="open_cancel">Cancel</string>
+    <string name="open_app_moonreader">Moon+ Reader</string>
+    <string name="open_app_foobar2000">foobar2000</string>
 
+    <!-- Sync (§8): the success summary joins three ICU plurals -->
     <string name="sync_state_idle">Ready to synchronize</string>
     <string name="sync_state_contacting">Contacting server…</string>
     <string name="sync_state_receiving">Receiving content…</string>
     <string name="sync_state_committing">Committing…</string>
-    <string name="sync_state_success">Synchronized — %1$d new · %2$d updated · %3$d removed</string>
+    <string name="sync_state_success">Synchronized — %1$s · %2$s · %3$s</string>
+    <plurals name="sync_count_new">
+        <item quantity="one">1 new</item>
+        <item quantity="other">%d new</item>
+    </plurals>
+    <plurals name="sync_count_updated">
+        <item quantity="one">1 updated</item>
+        <item quantity="other">%d updated</item>
+    </plurals>
+    <plurals name="sync_count_removed">
+        <item quantity="one">1 removed</item>
+        <item quantity="other">%d removed</item>
+    </plurals>
     <string name="sync_state_failure">Synchronization failed</string>
     <string name="sync_last_attempt">Last attempt: %1$s</string>
     <string name="sync_never_attempted">Not synchronized yet</string>
@@ -41,11 +79,13 @@
     <string name="sync_desc_done">Synchronization: completed</string>
     <string name="sync_desc_failed">Synchronization: failed</string>
 
+    <!-- Popups -->
     <string name="popup_ok">OK</string>
     <string name="popup_sync_title">Synchronization</string>
     <string name="popup_wifi_title">Server reachability</string>
     <string name="sync_detail_error">Last error: %1$s</string>
 
+    <!-- Wi-Fi indicator (§8): states, detail text, and the greeting-failure reason -->
     <string name="wifi_desc_neutral">Server reachability unknown</string>
     <string name="wifi_desc_red">No unmetered network</string>
     <string name="wifi_desc_amber">Server unreachable</string>
@@ -53,7 +93,11 @@
     <string name="wifi_detail_red">No validated unmetered network. Hermes waits for one and never downloads over mobile data.</string>
     <string name="wifi_detail_amber">An unmetered network is present, but api.logophilia.eu did not answer successfully (%1$s).</string>
     <string name="wifi_detail_green">api.logophilia.eu answered successfully.</string>
+    <string name="wifi_reason_unreachable">unreachable</string>
+    <string name="wifi_reason_auth">authentication rejected</string>
+    <string name="wifi_reason_server">server error</string>
 
+    <!-- About (§8) -->
     <string name="about_description">A companion for the Logophilia free loot: keeps the currently available content synchronized over Wi-Fi and hands it to your reader and player apps. Not a media library.</string>
     <string name="about_version">Version %1$s</string>
 </resources>

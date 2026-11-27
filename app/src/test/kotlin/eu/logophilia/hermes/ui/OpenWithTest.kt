@@ -1,5 +1,6 @@
 package eu.logophilia.hermes.ui
 
+import eu.logophilia.hermes.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -46,7 +47,7 @@ class OpenWithTest {
     fun `epub resolves to Moon+ Reader with the §7 Play link`() {
         val suggestion = OpenWith.suggestionFor("application/epub+zip")
 
-        assertEquals("Moon+ Reader", suggestion?.appName)
+        assertEquals(R.string.open_app_moonreader, suggestion?.appNameRes)
         assertEquals(
             "https://play.google.com/store/apps/details?id=com.flyersoft.moonreader",
             suggestion?.playUrl,
@@ -59,7 +60,7 @@ class OpenWithTest {
         // Play redirect (foobar2000.org/get-android) on 2026-11-27.
         val suggestion = OpenWith.suggestionFor("audio/mpeg")
 
-        assertEquals("foobar2000", suggestion?.appName)
+        assertEquals(R.string.open_app_foobar2000, suggestion?.appNameRes)
         assertEquals(
             "https://play.google.com/store/apps/details?id=com.foobar2000.foobar2000",
             suggestion?.playUrl,

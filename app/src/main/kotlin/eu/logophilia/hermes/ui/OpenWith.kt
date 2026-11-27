@@ -5,11 +5,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
+import eu.logophilia.hermes.R
 import java.io.File
 import java.net.URLEncoder
 
-/** An installation suggestion with a direct Google Play link (§7). */
-data class InstallSuggestion(val appName: String, val playUrl: String)
+/**
+ * An installation suggestion with a direct Google Play link (§7). The app
+ * name is a string resource — all user-facing copy lives in
+ * res/values/strings.xml (§8 User-facing copy).
+ */
+data class InstallSuggestion(val appNameRes: Int, val playUrl: String)
 
 /**
  * File opening with external applications (SPECIFICATION.md §7): MIME types
@@ -72,8 +77,10 @@ object OpenWith {
 
     /** A direct Play link where an appropriate application exists (§7). */
     fun suggestionFor(mimeType: String): InstallSuggestion? = when {
-        mimeType == "application/epub+zip" -> InstallSuggestion("Moon+ Reader", MOON_READER)
-        mimeType.startsWith("audio/") -> InstallSuggestion("foobar2000", FOOBAR2000)
+        mimeType == "application/epub+zip" ->
+            InstallSuggestion(R.string.open_app_moonreader, MOON_READER)
+        mimeType.startsWith("audio/") ->
+            InstallSuggestion(R.string.open_app_foobar2000, FOOBAR2000)
         else -> null
     }
 
