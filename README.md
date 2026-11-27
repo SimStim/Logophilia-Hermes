@@ -96,4 +96,10 @@ which supersedes [design outline.md](design%20outline.md)).
   targetSdk 37, Jetpack Compose shell with the four destinations (Home,
   Library, Sync, About) as placeholders, bundled logos from `art/`,
   FileProvider stub, backup/extraction rules, secret and signing wiring.
+- **Milestone 2 — done.** API client (§3): OkHttp layer with the `X-Api-key`
+  header; the development `Referer` spoof isolated in one clearly marked
+  interceptor; `GET /freeloot` with strict manifest validation; `GET /download`
+  with `Content-Type` sniffing; `GET /` greeting probe; INTERNET permission.
+  Verified against the live API (curl and end-to-end unit tests, including a
+  checksum round-trip); the manifest validator is unit-tested offline.
 - Next: synchronization engine (§4, §5), library UI and file opening (§6–§7).
