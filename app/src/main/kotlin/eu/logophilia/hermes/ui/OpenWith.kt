@@ -1,5 +1,6 @@
 package eu.logophilia.hermes.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -52,6 +53,12 @@ object OpenWith {
         "html" to "text/html",
         "htm" to "text/html",
         "pdf" to "application/pdf",
+        // Images (§7: .jpg, .jpeg, .png, .webp, .gif — image viewer)
+        "jpg" to "image/jpeg",
+        "jpeg" to "image/jpeg",
+        "png" to "image/png",
+        "webp" to "image/webp",
+        "gif" to "image/gif",
     )
 
     /**
@@ -78,6 +85,7 @@ object OpenWith {
             mimeType == "text/plain" -> "text editor"
             mimeType == "text/html" -> "web browser"
             mimeType.startsWith("audio/") -> "audio player"
+            mimeType.startsWith("image/") -> "image viewer"
             mimeType == "application/epub+zip" ||
                 mimeType == "application/x-mobipocket-ebook" ||
                 mimeType == "application/vnd.amazon.ebook" ||
@@ -105,6 +113,11 @@ sealed interface OpenOutcome {
  * Opens synchronized content with external applications: a FileProvider
  * content URI (private filesystem paths are never exposed, §7) plus the
  * suitable MIME type, started only when the intent actually resolves.
+ *
+ * §7, §11: 26: opening a file must never fail silently. Resolution happens at
+ * tap time, and even a resolved start can still fail (stale resolver state,
+ * revoked permissions) — any failure surfaces the missing-handler dialog, the
+ * generic "no application found" one when no suggestion applies.
  */
 class FileOpener(private val context: Context) {
 
@@ -122,10 +135,15 @@ class FileOpener(private val context: Context) {
             intent,
             PackageManager.MATCH_DEFAULT_ONLY,
         )
-        return if (handlers.isNotEmpty()) {
+        if (handlers.isEmpty()) {
+            return OpenOutcome.MissingHandler(mimeType, OpenWith.suggestionFor(mimeType))
+        }
+        return try {
             context.startActivity(intent)
             OpenOutcome.Started
-        } else {
+        } catch (_: ActivityNotFoundException) {
+            OpenOutcome.MissingHandler(mimeType, OpenWith.suggestionFor(mimeType))
+        } catch (_: SecurityException) {
             OpenOutcome.MissingHandler(mimeType, OpenWith.suggestionFor(mimeType))
         }
     }

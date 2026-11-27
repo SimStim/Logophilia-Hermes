@@ -37,6 +37,10 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="image/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/octet-stream" />
         </intent>
         <intent>

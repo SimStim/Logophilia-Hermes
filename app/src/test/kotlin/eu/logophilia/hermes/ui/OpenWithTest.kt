@@ -22,11 +22,16 @@ class OpenWithTest {
         assertEquals("text/html", OpenWith.mimeType("Page.html"))
         assertEquals("text/html", OpenWith.mimeType("Page.HTM"))
         assertEquals("application/pdf", OpenWith.mimeType("Paper.pdf"))
+        // §7, added in v1.1 (§11: 26): image files open in a viewer.
+        assertEquals("image/jpeg", OpenWith.mimeType("cover.jpg"))
+        assertEquals("image/jpeg", OpenWith.mimeType("cover.JPEG"))
+        assertEquals("image/png", OpenWith.mimeType("cover.png"))
+        assertEquals("image/webp", OpenWith.mimeType("cover.webp"))
+        assertEquals("image/gif", OpenWith.mimeType("cover.gif"))
     }
 
     @Test
     fun `unknown types are left to Android as generic binary data`() {
-        assertEquals("application/octet-stream", OpenWith.mimeType("Image.png"))
         assertEquals("application/octet-stream", OpenWith.mimeType("no-extension"))
         assertEquals("application/octet-stream", OpenWith.mimeType("Archive.7z"))
     }
@@ -70,6 +75,10 @@ class OpenWithTest {
         assertNull(OpenWith.suggestionFor("application/pdf"))
         assertNull(OpenWith.suggestionFor("text/plain"))
         assertNull(OpenWith.suggestionFor("application/octet-stream"))
+        // Images have no dedicated suggestion (§7): they get the generic
+        // "no application found" dialog with a store search instead.
+        assertNull(OpenWith.suggestionFor("image/jpeg"))
+        assertNull(OpenWith.suggestionFor("image/png"))
     }
 
     @Test
@@ -77,6 +86,10 @@ class OpenWithTest {
         assertEquals(
             "https://play.google.com/store/search?q=pdf+reader&c=apps",
             OpenWith.searchUrlFor("application/pdf"),
+        )
+        assertEquals(
+            "https://play.google.com/store/search?q=image+viewer&c=apps",
+            OpenWith.searchUrlFor("image/jpeg"),
         )
         assertTrue(OpenWith.searchUrlFor("application/octet-stream").endsWith("&c=apps"))
     }
