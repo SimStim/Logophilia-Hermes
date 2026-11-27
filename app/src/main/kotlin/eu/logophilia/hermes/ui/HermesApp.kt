@@ -7,11 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -25,18 +20,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import eu.logophilia.hermes.R
 
-private enum class Section(val labelRes: Int, val icon: ImageVector) {
-    Home(R.string.tab_home, Icons.Filled.Home),
-    Library(R.string.tab_library, Icons.AutoMirrored.Filled.List),
-    Sync(R.string.tab_sync, Icons.Filled.Refresh),
-    About(R.string.tab_about, Icons.Filled.Info),
+private enum class Section(val labelRes: Int, val iconRes: Int) {
+    Home(R.string.tab_home, R.drawable.ic_tab_home),
+    Library(R.string.tab_library, R.drawable.ic_tab_library),
+    Sync(R.string.tab_sync, R.drawable.ic_tab_sync),
+    About(R.string.tab_about, R.drawable.ic_tab_about),
 }
 
 /**
@@ -56,7 +50,10 @@ fun HermesApp() {
                         selected = current == section,
                         onClick = { current = section },
                         icon = {
-                            Icon(section.icon, contentDescription = stringResource(section.labelRes))
+                            Icon(
+                                painterResource(section.iconRes),
+                                contentDescription = stringResource(section.labelRes),
+                            )
                         },
                         label = { Text(stringResource(section.labelRes)) },
                     )

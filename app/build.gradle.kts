@@ -22,7 +22,13 @@ val keystore = Properties().apply {
 
 android {
     namespace = "eu.logophilia.hermes"
-    compileSdk = 37
+    // Minor-level API 37.2: required by the current stable Compose BOM
+    // (2026.11.01); targetSdk remains the current stable major level, 37.
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "eu.logophilia.hermes"
