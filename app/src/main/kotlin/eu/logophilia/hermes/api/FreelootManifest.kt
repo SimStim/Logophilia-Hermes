@@ -28,9 +28,9 @@ class ManifestException(message: String, cause: Throwable? = null) : ApiExceptio
  * `"success"`, `freeloot` is an array, and every entry carries a non-empty
  * `name` (no path separators, not dot-prefixed), a non-negative `size`, and a
  * 64-character lowercase hexadecimal `sha256`. An empty `freeloot` array with
- * `status: "success"` is valid; with the current server's `status: "error"`
- * it is rejected here (an API error must never be read as an empty content
- * list, §3 and §5).
+ * `status: "success"` is valid — the deliberate empty manifest (§3, §5); a
+ * non-success status is rejected here, so an API error can never be read as
+ * an empty content list (§3 and §5).
  */
 object FreelootManifest {
 

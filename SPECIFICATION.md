@@ -1,9 +1,16 @@
 # Logophilia Hermes — Specification
 
-**Version 1.2 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. v1.2 folds in the decision made after
-v1.1: the app identifies itself with the `X-Client` marker that the API
-exempts from its browser CORS/Referer gate (§3), replacing the former
+**Version 1.4 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.4 folds in the API fixes that
+landed after v1.3: an empty downloads folder now answers a deliberate empty
+manifest with `status: "success"` (§3, §5), and a missing or invalid
+`/download` name now answers a real `404` (§3) — the client's defensive
+Content-Type sniffing stays in force. v1.3 folded in the decision made after
+v1.2: the API delivers key updates through the greeting's `usha` property and
+the app adopts and persists them (§3.5), so the app side of greeting-only key
+renewal is no longer blocked. v1.2 folded in the decision made after v1.1:
+the app identifies itself with the `X-Client` marker that the API exempts
+from its browser CORS/Referer gate (§3), replacing the former
 development-only `Referer` spoof. v1.1 folded in the decisions made after
 v1.0: greeting-only key renewal (§3.5), no `Content-Length` on `/download`
 (§3), incremental per-file commit with a per-commit network-gate re-check
@@ -11,8 +18,9 @@ v1.0: greeting-only key renewal (§3.5), no `Content-Length` on `/download`
 consolidation and a hierarchical Library (§8), image MIME types with a
 generic no-handler dialog (§7), bundled fonts and externalized user-facing
 strings (§8). Cross-repository follow-ups live in `TODO.md`. The API contract
-in §3 was verified against `SimStim/Logophilia-API` at commit `5f6e946`
-(the client-marker exemption); re-verify if the API changes.
+in §3 was verified against `SimStim/Logophilia-API` at commit `08e1f91`
+(the greeting `usha` renewal) plus the empty-manifest and 404 fixes in its
+working tree; re-verify if the API changes.
 
 ## 1. Purpose and scope
 
@@ -52,7 +60,8 @@ Deliberately absent:
   sufficient for synchronization.
 - No persisted user preferences. There is no theme selector (the app always
   follows the system theme) and no configurable endpoints or keys. The only
-  persisted state in the entire app is the `lastSyncAttempt` timestamp (§4).
+  persisted state in the entire app is the `lastSyncAttempt` timestamp (§4)
+  and the greeting-renewed API key (§3.5).
 - No Auto Backup: `android:allowBackup="false"`, with matching
   `dataExtractionRules`. A restored months-old vault is worthless when the
   manifest is authoritative; excluding content from backups also keeps
@@ -64,7 +73,9 @@ Base URL: `https://api.logophilia.eu`
 
 ### Authentication
 
-Every request must include the header `X-Api-key` with the current API key.
+Every request must include the header `X-Api-key` with the API key currently
+in force — the compiled-in key until a greeting renews it (§3.5); a renewed
+key is persisted immediately and used for all subsequent calls.
 
 The initial key is compiled into the application (hardcoded). It is a client
 credential, not a security measure — it protects against the most casual
@@ -72,8 +83,10 @@ misuse only; all content is public. Never log API keys or expose them in
 diagnostic messages.
 
 Auth failures: `401` (key missing) and `403` (key invalid), answered as
-`{"status":"error","message":"..."}`. Until key renewal exists (§3.5), a `403`
-is a plain authentication failure: report it and stop. No retry loops.
+`{"status":"error","message":"..."}`. A `403` is a plain authentication
+failure: report it and stop. No retry loops — a refused key self-heals
+through the next greeting (§3.5), which every trigger event performs first
+(§4).
 
 ### Client marker
 
@@ -116,8 +129,10 @@ request.
 - Flat list of files; no subdirectories, categories, or dates.
 - `sha256` is computed over the complete file content (server-side `.hash`
   sidecar cache). `size` is in bytes.
-- Empty content list: the current server answers `status: "error"` with an
-  empty `freeloot` array (API fix scheduled, see `TODO.md`).
+- Empty content list: an empty downloads folder is a deliberate empty
+  manifest — the server answers `status: "success"` with an empty `freeloot`
+  array (API fix, TODO.md). See §5: after validation, obsolete content is
+  removed.
 
 `GET /download?fileName=<name>` — one file.
 
@@ -126,15 +141,21 @@ request.
   client must not rely on it; the SHA-256 verification is the integrity
   check. No HTTP Range support: interrupted downloads cannot resume and are
   retried in full.
-- A missing or invalid `fileName` currently returns HTTP 200 with a JSON
-  error body (API fix scheduled). The client must therefore treat a response
-  whose `Content-Type` is not `application/octet-stream` as a failed
-  download.
+- A missing or invalid `fileName` returns a real `404` with a JSON error
+  body (API fix, TODO.md); missing and invalid names share the code, so
+  probing the download folder learns nothing. The client still sniffs the
+  `Content-Type` defensively: a response whose type is not
+  `application/octet-stream` is a failed download, whatever the status —
+  that rule now guards against regressions and intermediaries, not against
+  the server's former 200-with-error-body answer.
 
-`GET /` — greeting. HTTP 200, `{"message":"Welcome to Logophilia API.","status":"success"}`.
-Used as the server-reachability probe for the Wi-Fi indicator (§8) and as the
-key-renewal channel (§3.5). Like all endpoints it requires the API key. It is
-not a synchronization attempt and does not affect the cooldown (§4).
+`GET /` — greeting. HTTP 200,
+`{"message":"Welcome to Logophilia API.","status":"success"}`. Used as the
+server-reachability probe for the Wi-Fi indicator (§8) and as the key-renewal
+channel (§3.5): a response to a retired app key additionally carries the
+current key under the `usha` property. Like all endpoints it requires the
+API key. It is not a synchronization attempt and does not affect the
+cooldown (§4).
 
 Rate limiting applies to POST endpoints only; the app uses none.
 
@@ -149,35 +170,41 @@ responses.
 An API error or invalid response must NEVER be interpreted as an empty
 content list, and must never delete or modify existing content. An empty
 manifest (`freeloot: []`) is valid only when returned with
-`status: "success"`; with the current server behavior (`status: "error"`) it
-must be treated as a failed attempt that changes nothing locally.
+`status: "success"` — which is exactly what the server now answers for an
+empty downloads folder (§3); any non-success status is a failed attempt
+that changes nothing locally.
 
-### API key renewal (greeting-only channel; blocked on API feature)
+### API key renewal (greeting-only `usha` channel)
 
-The API delivers key updates exclusively through the greeting endpoint. When
-a request presents a key found on the server's retired-keys list, `GET /`
-responds with the `key_expired` error carrying `new_api_key`:
+The API delivers key updates exclusively through the greeting endpoint. A
+retired app key still authenticates on `GET /` — and only there — whose
+response then carries the current key under the `usha` property (Sanskrit:
+dawn), alongside the regular success fields:
 
 ```json
-{ "success": false, "error": "key_expired",
-  "message": "Your API key has expired.", "new_api_key": "NEW_KEY" }
+{ "message": "Welcome to Logophilia API.", "status": "success",
+  "usha": "CURRENT_APP_KEY" }
 ```
 
-Every other endpoint keeps the strict single-key check and answers an expired
-key with a plain `403`; no other endpoint ever delivers a replacement key.
-Rationale: renewal logic lives in one controller instead of all of them; the
-website never calls the greeting, so a replacement key can never be disclosed
-to web clients by mistake; and the app probes the greeting on every trigger
-event anyway, so a fresh key always arrives before any sync traffic.
+Every other endpoint keeps the strict key check and answers a retired key
+with a plain `403`; no other endpoint ever delivers a replacement key.
+Holders of the current app key, of the website key, or of no key at all
+receive no `usha`. Rationale: renewal logic lives in one controller instead
+of all of them; the website never calls the greeting, so a replacement key
+can never be disclosed to web clients by mistake; and the app probes the
+greeting on every trigger event anyway, so a fresh key always arrives before
+any sync traffic.
 
 App behavior: the greeting probe is the first network step of every trigger
-(§4). If it reports `key_expired`: validate that the replacement key is
-present and non-empty, persist it, and continue the regular flow with the
-new key. No retry-once rule exists: a key rotated mid-sync simply fails that
-attempt, and the next probe delivers the new key. Never loop renewals; if a
-renewal fails, show a useful error and wait for the next permitted attempt.
-Until the API implements this, the client behaves as in §3 Authentication.
-See `TODO.md`.
+(§4). After every greeting response, if the body contains a `usha` property,
+the app overwrites its stored key with that value and persists it
+immediately; all subsequent calls use the new key. A blank or non-string
+`usha` counts as absent, so it can never blank out the stored key. The key
+in force lives in private SharedPreferences ("hermes_api"), separate from
+the sync store (§4); key material is never logged (§3). No retry-once rule
+exists: a key rotated mid-sync simply fails that attempt, and the next
+greeting delivers the new key. Never loop renewals; the existing
+greet-first + wait/restart cycle is all the self-healing there is.
 
 ## 4. Synchronization policy
 
@@ -209,9 +236,9 @@ skip synchronization.
 
 ### Five-minute cooldown
 
-One timestamp, `lastSyncAttempt`, is persisted (DataStore or
-SharedPreferences) and survives application restarts. It is written when an
-actual synchronization attempt begins.
+The `lastSyncAttempt` timestamp is persisted (SharedPreferences) and
+survives application restarts. It is written when an actual synchronization
+attempt begins.
 
 A new attempt is permitted only if at least five minutes have elapsed since
 the previous attempt — regardless of the previous attempt's outcome

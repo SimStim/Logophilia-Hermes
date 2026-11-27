@@ -2,7 +2,9 @@ package eu.logophilia.hermes.api
 
 import eu.logophilia.hermes.BuildConfig
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
@@ -14,6 +16,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Failures of the API client, as a sealed family so the synchronization
@@ -67,27 +70,61 @@ internal fun Request.withClientMarkers(version: String): Request = newBuilder()
     .header("X-Client-Version", version)
     .build()
 
+/** The only two fields the app reads from a greeting body (§3, §3.5). */
+internal data class GreetingFields(val status: String?, val renewedKey: String?)
+
+/**
+ * §3/§3.5 greeting-body parsing: the `status` field classifies the probe
+ * result, and the optional `usha` property carries the API's current key for
+ * a stale-key holder (the greeting-only renewal channel). No other property
+ * is read. An unreadable or non-JSON body yields both fields null; a `usha`
+ * that is JSON null, not a string, or blank counts as absent so it can never
+ * blank out the stored key.
+ */
+internal fun parseGreeting(body: String): GreetingFields = try {
+    val fields = Json.parseToJsonElement(body) as? JsonObject
+    GreetingFields(
+        status = (fields?.get("status") as? JsonPrimitive)?.content,
+        renewedKey = (fields?.get("usha") as? JsonPrimitive)
+            ?.takeUnless { it is JsonNull }
+            ?.content
+            ?.takeIf { it.isNotBlank() },
+    )
+} catch (_: Exception) {
+    GreetingFields(null, null)
+}
+
 /**
  * The Logophilia API client (SPECIFICATION.md §3).
  *
  * Blocking methods; never call them on the Android main thread. Every request
- * carries the compiled-in API key (§3 Authentication) and the client marker
- * (§3 Client marker). API keys are never logged or exposed in diagnostic
- * messages.
+ * carries the client marker (§3 Client marker) and the API key currently in
+ * force (§3 Authentication): the persisted key from [keyStore] when one was
+ * stored by an earlier renewal, else the compiled-in [apiKey]. API keys are
+ * never logged or exposed in diagnostic messages.
  */
 class LogophiliaApi(
-    private val apiKey: String,
+    apiKey: String,
     private val baseUrl: String = DEFAULT_BASE_URL,
+    /** Persists greeting-renewed keys immediately (§3.5); optional for tests. */
+    private val keyStore: ApiKeyStore? = null,
 ) : SyncClient {
+
+    /**
+     * The key in use (§3.5). Atomic because a greeting probe may renew the
+     * key while a synchronization attempt reads it for its next request.
+     */
+    private val currentKey =
+        AtomicReference(keyStore?.load()?.takeIf { it.isNotBlank() } ?: apiKey)
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
-        // Sends the API key with every request (§3 Authentication).
+        // Sends the API key currently in force with every request (§3).
         .addInterceptor { chain ->
             chain.proceed(
                 chain.request().newBuilder()
-                    .header("X-Api-key", apiKey)
+                    .header("X-Api-key", currentKey.get())
                     .build(),
             )
         }
@@ -98,16 +135,23 @@ class LogophiliaApi(
         }
         .build()
 
-    /** GET / — the server-reachability probe for the Wi-Fi indicator (§8). */
+    /**
+     * GET / — the server-reachability probe for the Wi-Fi indicator (§8) and
+     * the greeting-only key-renewal channel (§3.5): every greeting response
+     * is checked for `usha`, and a stale-key holder rotates to the delivered
+     * key immediately — persisted at once, in force for all later calls.
+     */
     fun probeGreeting(): GreetingResult {
         val request = Request.Builder().url(url("/")).build()
         return try {
             execute(request).use { response ->
+                val greeting = greetingOf(response)
+                adoptRenewedKey(greeting.renewedKey)
                 when {
                     !response.isSuccessful && (response.code == 401 || response.code == 403) ->
                         GreetingResult.AUTH_REJECTED
                     !response.isSuccessful -> GreetingResult.SERVER_ERROR
-                    statusFieldOf(response) == "success" -> GreetingResult.SUCCESS
+                    greeting.status == "success" -> GreetingResult.SUCCESS
                     else -> GreetingResult.SERVER_ERROR
                 }
             }
@@ -201,20 +245,30 @@ class LogophiliaApi(
 
     private fun url(path: String) = "$baseUrl$path".toHttpUrl()
 
-    /** The "status" field of a small JSON body, or null if unreadable. */
-    private fun statusFieldOf(response: Response): String? = try {
-        Json.parseToJsonElement(response.readCapped(MAX_JSON_BYTES))
-            .let { it as? kotlinx.serialization.json.JsonObject }
-            ?.get("status")?.jsonPrimitive?.content
+    /** The parsed greeting body; both fields null when unreadable (§3.5). */
+    private fun greetingOf(response: Response): GreetingFields = try {
+        parseGreeting(response.readCapped(MAX_JSON_BYTES))
     } catch (_: Exception) {
-        null
+        GreetingFields(null, null)
+    }
+
+    /**
+     * §3.5: adopt the key the greeting delivered — in force from now on and
+     * persisted immediately, so the rotation survives a restart. No retry,
+     * no loop: a refused attempt simply self-heals at the next greeting.
+     */
+    private fun adoptRenewedKey(key: String?) {
+        if (key == null) return
+        currentKey.set(key)
+        keyStore?.store(key)
     }
 
     /** The server's error message from a JSON error body, if any. */
     private fun serverDetail(response: Response): String? = try {
-        Json.parseToJsonElement(response.readCapped(MAX_JSON_BYTES))
-            .let { it as? kotlinx.serialization.json.JsonObject }
-            ?.get("message")?.jsonPrimitive?.content
+        (Json.parseToJsonElement(response.readCapped(MAX_JSON_BYTES)) as? JsonObject)
+            ?.get("message")
+            ?.let { it as? JsonPrimitive }
+            ?.content
     } catch (_: Exception) {
         null
     }

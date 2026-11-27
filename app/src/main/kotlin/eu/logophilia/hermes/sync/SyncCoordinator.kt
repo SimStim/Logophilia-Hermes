@@ -17,8 +17,7 @@ enum class WifiIndicator { NEUTRAL, RED, AMBER, GREEN }
 
 /**
  * Observable synchronization status, shown by the Sync screen and the status
- * indicators (§8). Only in-memory state: nothing but `lastSyncAttempt` is
- * persisted (§2).
+ * indicators (§8). Only in-memory state: sync status is never persisted (§2).
  */
 data class SyncStatus(
     val running: Boolean = false,

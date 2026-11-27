@@ -2,40 +2,42 @@
 
 Follow-ups from the design review (2026-11-26). Split by repository.
 
+Status: every item below is resolved except the formal acceptance pass on a
+physical device (last item in the Hermes list).
+
 ## API (SimStim/Logophilia-API)
 
-- [ ] **Client marker before public launch.** Exempt an explicitly marked mobile client
-  (e.g. `X-Client: hermes-android` or a reserved `User-Agent` prefix) from the
-  CORS/Referer check in `CorsMiddleware`, so the app no longer needs to spoof
-  `Referer`. An explicit marker is an honest, stable contract and lets the API
-  keep separately trackable download statistics for the mobile client
-  (design outline §2). Until then the app spoofs `Referer: https://logophilia.eu/`.
-- [ ] **API key renewal — greeting-only channel.** Deliver key updates exclusively
-  through the greeting endpoint (`GET /`): when the presented key is found on
-  the server's retired-keys list, the greeting responds with the `key_expired`
-  error carrying `new_api_key`. Every other endpoint keeps the strict
-  single-key check and answers expired keys with plain `403`. Benefits:
-  fewer API changes (renewal logic in one controller only); the website never
-  calls the greeting, so a replacement key can never be disclosed to web
-  clients by mistake; and the app already probes the greeting on every
-  trigger event (spec §8), so it always receives a fresh key before any sync
-  traffic. App-side consequence: the trigger flow becomes network check →
-  greeting probe (reachability + optional key renewal) → sync attempt, and
-  the old "retry the original request once" rule becomes unnecessary — a key
-  rotated mid-sync simply fails that attempt and renews at the next probe.
-  Supersedes SPECIFICATION.md §3.5 (amend the spec when convenient). Until
-  this exists, Hermes treats `403` as a plain authentication failure. Key
-  rotation happens only when necessary, not on a schedule.
-- [ ] **Empty file list status.** `/freeloot` currently answers an empty downloads
-  folder with `status: "error"` and `freeloot: []`. Return `status: "success"`
-  instead, so clients can distinguish a deliberate empty manifest from a
-  malformed response (design outline §4, "Empty manifest"). Edge case — there
-  is normally always free loot.
-- [ ] **Proper 404 for missing downloads.** `/download` answers a missing or
-  invalid `fileName` with HTTP 200 + JSON error body. Send a real 404 (or
-  another error status) instead. Mostly a browser UX issue (stale page after
-  long idle); the app downloads immediately after fetching the manifest, but
-  will still sniff `Content-Type` defensively.
+- [x] **Client marker before public launch.** Done 2026-11-27 (API commit
+  `5f6e946`). `CorsMiddleware` exempts the reserved marker header
+  `X-Client: eu.logophilia.hermes` (exact value, not CORS-safelisted) from the
+  CORS/Referer checks, so the app never needed to keep the `Referer` spoof:
+  it was removed the same day (Hermes item below). Auth and rate limiting
+  still apply to exempted requests.
+- [x] **API key renewal — greeting-only channel.** Done 2026-11-27 (API commit
+  `08e1f91`, app side the same day). A retired app key still authenticates on
+  `GET /` only, whose response carries the current key under `usha`
+  (Sanskrit: dawn) alongside the regular success fields — not the
+  `key_expired` error sketched here. Every other endpoint keeps the strict
+  key check and answers a retired key with plain `403`; holders of the
+  current app key, the website key, or no key learn nothing. The app checks
+  every greeting response for `usha`, overwrites its stored key, and
+  persists immediately (SharedPreferences, api/ApiKeyStore.kt). No
+  retry-once rule exists — the greet-first + wait/restart cycle self-heals.
+  Spec amended to v1.3 (§2, §3, §3.5, §4).
+- [x] **Empty file list status.** Done 2026-11-27 (API, working tree): an empty
+  downloads folder now answers `status: "success"` with an empty `freeloot`
+  array, so clients can distinguish a deliberate empty manifest from a
+  malformed response (design outline §4, "Empty manifest"). The app's
+  validator always accepted empty+success and the engine already wipes
+  obsolete content on it (§5); a non-success status is still never read as
+  empty content. Edge case — there is normally always free loot.
+- [x] **Proper 404 for missing downloads.** Done 2026-11-27 (API, working tree):
+  a missing or invalid `fileName` now answers a real `404` with a JSON error
+  body; missing and invalid names share the code, so probing the download
+  folder learns nothing. Mostly a browser UX issue (stale page after long
+  idle); the app maps the 404 to `ApiException.Server` and still sniffs
+  `Content-Type` defensively, so both the old and the new server answers end
+  as a typed failed download with nothing written.
 
 ## Hermes (this repo)
 

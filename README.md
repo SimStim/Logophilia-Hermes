@@ -28,8 +28,8 @@ It is **not**:
 - **Minimum Android version:** Android 10 (API 29)
 - **Networking:** native Android HTTP networking / OkHttp
 - **JSON:** Kotlin serialization
-- **State:** a single persisted timestamp (`lastSyncAttempt`); no user
-  preferences, no settings screens
+- **State:** a persisted timestamp (`lastSyncAttempt`) and the current API
+  key; no user preferences, no settings screens
 - **File sharing:** Android Intents and FileProvider
 
 No bundled networking binaries, no Room/SQLite database, no unnecessary
@@ -51,10 +51,11 @@ sufficient for synchronization.
 - **Transactional** — a failed or interrupted sync never leaves the user
   without either the previous working version or a verified replacement;
   existing content always remains usable offline.
-- **Automatic API key renewal** — when the server reports an expired mobile
-  API key, the replacement key is stored and the request is retried once.
-  *(Pending the matching API feature; until then an unknown key is a plain
-  authentication failure.)*
+- **Automatic API key renewal** — the greeting hands the current key to a
+  holder of a retired key (the `usha` property); the app adopts it and
+  persists it immediately, so server-side rotations need no app release.
+  The existing greet-first cycle is all the self-healing there is: a refused
+  request simply fails, and the next permitted attempt greets first.
 
 ## Building
 

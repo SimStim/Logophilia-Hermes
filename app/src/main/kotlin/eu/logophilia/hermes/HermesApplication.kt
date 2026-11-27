@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.ConnectivityManager
 import android.net.Network
 import eu.logophilia.hermes.api.LogophiliaApi
+import eu.logophilia.hermes.api.SharedPreferencesApiKeyStore
 import eu.logophilia.hermes.sync.ConnectivityManagerGate
 import eu.logophilia.hermes.sync.ContentLayout
 import eu.logophilia.hermes.sync.SharedPreferencesSyncStore
@@ -21,7 +22,10 @@ class HermesApplication : Application() {
     val contentLayout: ContentLayout by lazy { ContentLayout(filesDir) }
 
     val syncCoordinator: SyncCoordinator by lazy {
-        val api = LogophiliaApi(BuildConfig.API_KEY)
+        // The API client renews its key through the greeting (§3.5) and
+        // persists every renewal immediately, so a server-side rotation
+        // survives restarts without an app release.
+        val api = LogophiliaApi(BuildConfig.API_KEY, keyStore = SharedPreferencesApiKeyStore(this))
         val gate = ConnectivityManagerGate(this)
         SyncCoordinator(
             engine = SyncEngine(

@@ -34,7 +34,37 @@ class LiveApiTest {
         line.substringAfter('=', "").trim().ifBlank { null }
     }
 
-    private fun api() = LogophiliaApi(assumeKey())
+    /** Records every persisted key without ever printing it (§3). */
+    private class RecordingApiKeyStore : ApiKeyStore {
+        val storedKeys = mutableListOf<String>()
+        override fun load(): String? = null
+        override fun store(key: String) {
+            storedKeys.add(key)
+        }
+    }
+
+    /**
+     * A client that has greeted once, in the app's own greet-first order
+     * (§4): a configured key that the server has retired was already renewed
+     * through the greeting's "usha" property (§3.5) before any real endpoint
+     * is called.
+     */
+    private fun greetedApi(): LogophiliaApi {
+        val store = RecordingApiKeyStore()
+        val api = LogophiliaApi(assumeKey(), keyStore = store)
+        assertEquals(
+            "the greeting must succeed before any other endpoint",
+            GreetingResult.SUCCESS,
+            api.probeGreeting(),
+        )
+        if (store.storedKeys.isNotEmpty()) {
+            // A renewal happened: the configured key was retired server-side
+            // and the current key was persisted above. Key material is never
+            // printed (§3); update secrets.properties at your leisure.
+            println("NOTE: the greeting renewed the API key (usha); the configured key is retired.")
+        }
+        return api
+    }
 
     private fun assumeKey(): String {
         assumeTrue("no API key available; skipping live API test", apiKey != null)
@@ -52,12 +82,25 @@ class LiveApiTest {
 
     @Test
     fun `greeting probe succeeds`() {
-        assertEquals(GreetingResult.SUCCESS, api().probeGreeting())
+        assertEquals(GreetingResult.SUCCESS, LogophiliaApi(assumeKey()).probeGreeting())
+    }
+
+    @Test
+    fun `the greeting delivers the current key under usha and the app adopts it`() {
+        val store = RecordingApiKeyStore()
+        val api = LogophiliaApi(assumeKey(), keyStore = store)
+        assertEquals(GreetingResult.SUCCESS, api.probeGreeting())
+        // The manifest endpoint accepts only the current key: success proves
+        // the app is using it — adopted from "usha" when the configured key
+        // was retired, or already holding it otherwise.
+        assertTrue(api.fetchManifest().isNotEmpty())
+        // Whatever was persisted is a real key, never blank (§3.5).
+        store.storedKeys.forEach { key -> assertTrue(key.isNotBlank()) }
     }
 
     @Test
     fun `manifest parses and validates`() {
-        val entries = api().fetchManifest()
+        val entries = greetedApi().fetchManifest()
         // There is normally always free loot (TODO.md); with the current
         // server an empty list would even arrive as status "error" and be
         // rejected, so a validated manifest is non-empty today.
@@ -74,21 +117,28 @@ class LiveApiTest {
 
     @Test
     fun `downloaded file matches the manifest checksum`() {
-        val entries = api().fetchManifest()
+        val entries = greetedApi().fetchManifest()
         val smallest = entries.minBy { it.size }
         assumeTrue("smallest file too large for a smoke test", smallest.size <= 100L * 1024 * 1024)
         val target = File(temp.root, "download.bin")
-        val downloaded = api().download(smallest.name, target)
+        val downloaded = greetedApi().download(smallest.name, target)
         assertEquals(smallest.size, downloaded.size)
         assertEquals(smallest.sha256, downloaded.sha256)
     }
 
     @Test
-    fun `bogus fileName is a failed download despite HTTP 200`() {
+    fun `bogus fileName is a failed download and writes nothing`() {
         val target = File(temp.root, "bogus.bin")
-        val failure = failure { api().download("no/such/file.zip", target) }
-        assertTrue("expected ApiException.Download, got $failure", failure is ApiException.Download)
-        // The JSON error body was sniffed before anything was written.
+        val failure = failure { greetedApi().download("no/such/file.zip", target) }
+        // The fixed API answers a real 404 (ApiException.Server); the former
+        // 200 + JSON error body is caught by the Content-Type sniff
+        // (ApiException.Download). Either way: a typed failure, and the JSON
+        // error body was never written to disk (§3, §5 Phase C).
+        assertTrue(
+            "expected a typed download failure, got $failure",
+            failure is ApiException.Server || failure is ApiException.Download,
+        )
+        if (failure is ApiException.Server) assertEquals(404, failure.httpCode)
         assertFalse(target.exists())
     }
 }

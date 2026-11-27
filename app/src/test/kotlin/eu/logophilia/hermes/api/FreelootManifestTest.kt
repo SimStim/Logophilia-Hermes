@@ -68,9 +68,10 @@ class FreelootManifestTest {
     }
 
     @Test
-    fun `rejects the current empty-list behavior of status error`() {
-        // TODO.md (API): /freeloot answers an empty downloads folder with
-        // status error and an empty array — this must never read as empty content.
+    fun `rejects an empty list with a non-success status`() {
+        // The server now answers an empty downloads folder with status
+        // success (TODO.md, fixed); a non-success status must still never
+        // read as empty content — that rule guards every other responder.
         assertRejected(manifest(status = "\"error\"", freeloot = "[]"))
     }
 
