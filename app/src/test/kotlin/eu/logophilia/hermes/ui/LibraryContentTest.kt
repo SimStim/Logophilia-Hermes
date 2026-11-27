@@ -11,9 +11,11 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
- * Offline tests of what the Library and Home screens show (§8): every item is
- * an openable file, sidecars/markers are invisible (§11: 24), counts and
- * mtime-based recency.
+ * Offline tests of what the Library and Home screens show (§8): a hierarchical
+ * listing — plain files as items, one item per extracted archive named after
+ * the archive basename without ".zip", browsed one level down — with
+ * sidecars/markers invisible (§11: 24), counts, and mtime-based recency over
+ * top-level items only (archive items by the directory's own timestamp).
  */
 class LibraryContentTest {
 
@@ -23,30 +25,55 @@ class LibraryContentTest {
     private val layout get() = ContentLayout(temp.root)
 
     @Test
-    fun `files are listed with paths relative to the category`() {
+    fun `top level lists plain files and one item per extracted archive`() {
         layout.createDirectories()
         File(layout.books, "B.epub").writeText("b")
+        File(layout.books, "C.epub").writeText("c")
         val album = File(layout.music, "Some OST").apply { mkdirs() }
-        File(album, "sub").mkdirs()
         File(album, "track.opus").writeText("t")
-        File(album, "sub/booklet.pdf").writeText("p")
 
-        val books = LibraryContent.items(layout, Category.Books)
-        val music = LibraryContent.items(layout, Category.Music)
+        val books = LibraryContent.topLevel(layout, Category.Books)
+        val music = LibraryContent.topLevel(layout, Category.Music)
 
-        assertEquals(listOf("B.epub"), books.map { it.name })
-        // Archive contents appear as relative paths, alphabetical, all files:
-        assertEquals(listOf("Some OST/sub/booklet.pdf", "Some OST/track.opus"), music.map { it.name })
-        assertTrue(music.none { it.file.isDirectory })
+        assertEquals(listOf("B.epub", "C.epub"), books.map { it.name })
+        assertTrue(books.all { it is LibraryItem.FileItem })
+        // The archive appears once, named after the archive basename without
+        // ".zip" (§8 Library) — never as its inner files:
+        assertEquals(listOf("Some OST"), music.map { it.name })
+        assertTrue(music.single() is LibraryItem.ArchiveItem)
     }
 
     @Test
-    fun `sidecars are never listed while their file exists`() {
+    fun `tapping an archive lists the files it contains without metadata`() {
+        layout.createDirectories()
+        val album = File(layout.music, "Some OST").apply { mkdirs() }
+        File(album, "track.opus").writeText("t")
+        File(album, "sub").mkdirs()
+        File(album, "sub/booklet.pdf").writeText("p")
+        // ZIP marker inside the archive root, and a sidecar next to a file:
+        File(album, "${"a".repeat(64)}.hash").writeText("a".repeat(64))
+        File(album, "track.opus.hash").writeText("0".repeat(64))
+
+        val archive = LibraryContent.topLevel(layout, Category.Music)
+            .single() as LibraryItem.ArchiveItem
+        val inside = LibraryContent.contents(archive.directory)
+
+        // Contained files, relative to the archive, alphabetical; `.hash`
+        // markers and sidecars are never listed (§6, §11: 24):
+        assertEquals(listOf("sub/booklet.pdf", "track.opus"), inside.map { it.name })
+        assertTrue(inside.all { it is LibraryItem.FileItem })
+    }
+
+    @Test
+    fun `top-level sidecars are never listed while their file exists`() {
         layout.createDirectories()
         File(layout.books, "B.epub").writeText("b")
         File(layout.books, "B.epub.hash").writeText("0".repeat(64))
 
-        assertEquals(listOf("B.epub"), LibraryContent.items(layout, Category.Books).map { it.name })
+        assertEquals(
+            listOf("B.epub"),
+            LibraryContent.topLevel(layout, Category.Books).map { it.name },
+        )
     }
 
     @Test
@@ -56,20 +83,7 @@ class LibraryContentTest {
 
         assertEquals(
             listOf("release-notes.hash"),
-            LibraryContent.items(layout, Category.Other).map { it.name },
-        )
-    }
-
-    @Test
-    fun `zip markers inside archive directories are never listed`() {
-        layout.createDirectories()
-        val album = File(layout.music, "Some OST").apply { mkdirs() }
-        File(album, "track.opus").writeText("t")
-        File(album, "${"a".repeat(64)}.hash").writeText("a".repeat(64))
-
-        assertEquals(
-            listOf("Some OST/track.opus"),
-            LibraryContent.items(layout, Category.Music).map { it.name },
+            LibraryContent.topLevel(layout, Category.Other).map { it.name },
         )
     }
 
@@ -91,7 +105,7 @@ class LibraryContentTest {
     }
 
     @Test
-    fun `recent content is the newest first by modification time`() {
+    fun `recent content is top-level only, archives by their directory mtime`() {
         layout.createDirectories()
         val old = File(layout.books, "Old.epub").apply {
             writeText("old")
@@ -101,18 +115,32 @@ class LibraryContentTest {
             writeText("new")
             setLastModified(2_000)
         }
+        val album = File(layout.music, "Some OST").apply {
+            mkdirs()
+            val track = File(this, "track.opus")
+            track.writeText("t")
+            track.setLastModified(9_000)
+        }
+        album.setLastModified(5_000)
 
         val recent = LibraryContent.recent(layout)
 
-        assertEquals(listOf(newer.name, old.name), recent.map { it.second.name })
+        // Top-level items only (§8 Home): the album appears once, at its
+        // extracted directory's own timestamp; its inner file (mtime 9000)
+        // never leaks into the list.
+        assertEquals(
+            listOf("Some OST", "New.pdf", "Old.epub"),
+            recent.map { it.second.name },
+        )
+        assertTrue(recent.first().second is LibraryItem.ArchiveItem)
     }
 
     @Test
     fun `empty directories yield empty listings and recency`() {
         layout.createDirectories()
 
-        assertTrue(LibraryContent.items(layout, Category.Books).isEmpty())
+        assertTrue(LibraryContent.topLevel(layout, Category.Books).isEmpty())
         assertTrue(LibraryContent.recent(layout).isEmpty())
-        assertFalse(LibraryContent.items(layout, Category.Other).isNotEmpty())
+        assertFalse(LibraryContent.topLevel(layout, Category.Other).isNotEmpty())
     }
 }

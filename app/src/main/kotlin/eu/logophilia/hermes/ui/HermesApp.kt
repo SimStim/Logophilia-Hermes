@@ -164,7 +164,7 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
                 selected = category,
                 status = status,
                 onSelect = { libraryCategory = it.name },
-                onOpenItem = { item -> open(item.file) },
+                onOpenFile = { file -> open(file) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -378,8 +378,10 @@ private fun HomeScreen(
     onOpenCategory: (Category) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Content changes only through synchronization; re-read after each attempt.
-    val home by produceState<HomeData?>(null, contentLayout, status.lastOutcome) {
+    // Content changes only through synchronization; every status change —
+    // including each per-file phase signal (§5) — re-reads, so recently added
+    // fills live while a synchronization runs.
+    val home by produceState<HomeData?>(null, contentLayout, status) {
         value = withContext(Dispatchers.IO) {
             val (books, albums, documents) = LibraryContent.counts(contentLayout)
             HomeData(books, albums, documents, LibraryContent.recent(contentLayout))
@@ -464,9 +466,12 @@ private fun LibraryScreen(
     selected: Category,
     status: SyncStatus,
     onSelect: (Category) -> Unit,
-    onOpenItem: (LibraryItem) -> Unit,
+    onOpenFile: (File) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // §8: the archive currently being browsed, one level down; resets when
+    // the category changes.
+    val browsing = remember(selected) { mutableStateOf<LibraryItem.ArchiveItem?>(null) }
     Column(modifier = modifier.padding(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Category.entries.forEach { category ->
@@ -478,13 +483,28 @@ private fun LibraryScreen(
             }
         }
         Spacer(Modifier.height(8.dp))
+        // Keyed on the whole status: every phase signal re-reads the content
+        // directories, so the Library fills while a synchronization runs.
         val items by produceState(
             initialValue = emptyList<LibraryItem>(),
             contentLayout,
             selected,
-            status.lastOutcome,
+            browsing.value,
+            status,
         ) {
-            value = withContext(Dispatchers.IO) { LibraryContent.items(contentLayout, selected) }
+            value = withContext(Dispatchers.IO) {
+                val inside = browsing.value?.directory
+                if (inside == null) {
+                    LibraryContent.topLevel(contentLayout, selected)
+                } else {
+                    LibraryContent.contents(inside)
+                }
+            }
+        }
+        if (browsing.value != null) {
+            TextButton(onClick = { browsing.value = null }) {
+                Text(stringResource(R.string.library_back))
+            }
         }
         if (items.isEmpty()) {
             Text(
@@ -500,7 +520,12 @@ private fun LibraryScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenItem(item) }
+                            .clickable {
+                                when (item) {
+                                    is LibraryItem.ArchiveItem -> browsing.value = item
+                                    is LibraryItem.FileItem -> onOpenFile(item.file)
+                                }
+                            }
                             .padding(vertical = 12.dp),
                     )
                 }

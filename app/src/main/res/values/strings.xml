@@ -16,6 +16,7 @@
     <string name="home_nothing_yet">Nothing synchronized yet.</string>
 
     <string name="library_empty">Nothing here yet — synchronize to fill this category.</string>
+    <string name="library_back">Back</string>
 
     <string name="open_missing_title">No app can open this</string>
     <string name="open_missing_with_suggestion">No application for this file type is installed. %1$s can open it.</string>
