@@ -102,4 +102,13 @@ which supersedes [design outline.md](design%20outline.md)).
   with `Content-Type` sniffing; `GET /` greeting probe; INTERNET permission.
   Verified against the live API (curl and end-to-end unit tests, including a
   checksum round-trip); the manifest validator is unit-tested offline.
-- Next: synchronization engine (§4, §5), library UI and file opening (§6–§7).
+- **Milestone 3 — done.** Synchronization engine (§4–§6): content layout and
+  classification (Books/Music/Documents/Other, sidecars, ZIP markers), guarded
+  ZIP extraction (ZIP Slip containment, entry/size limits), the engine's
+  phases A–E as a transactional operation, network gate (validated unmetered
+  only), five-minute cooldown persisted in SharedPreferences, single-flight,
+  Temp discipline, and the app wiring (coordinator, foreground and network
+  triggers). 50+ unit tests; live end-to-end sync against the real API
+  including a real OST extraction (opt-in via `HERMES_LIVE_SYNC=full`).
+- Next: Milestone 4 — the UI (§8): Home, Library, Sync, About with the status
+  indicators; then file opening (§7).
