@@ -4,41 +4,52 @@ import eu.logophilia.hermes.sync.Category
 import eu.logophilia.hermes.sync.ContentLayout
 import java.io.File
 
-/** One browsable item in the Library (§8): a file or an extracted archive directory. */
+/** One browsable, openable item in the Library (§8). */
 data class LibraryItem(
+    /** Path relative to the category directory, as shown in the UI. */
     val name: String,
     val file: File,
-    val isDirectory: Boolean,
 )
 
 /**
  * Maps the synchronized content directories to what the Library and Home
- * screens show (§8). Internal metadata is never listed (§6, §11: 24): a
- * `<name>.hash` sidecar is hidden while its file exists beside it; ZIP
- * markers live inside archive directories, which are listed as single items.
+ * screens show (§8). Every listed item is a plain file, so tapping it can
+ * always hand a real file to an external application (§7); extracted archive
+ * directories appear through the files they contain, named relatively
+ * (e.g. "Some OST/track.opus").
+ *
+ * Internal metadata is never listed (§6, §11: 24): a `<name>.hash` sidecar is
+ * hidden while its file exists beside it, and ZIP markers (`<sha256>.hash`
+ * inside archive directories) are never shown.
  */
 object LibraryContent {
 
+    /** A ZIP marker is named after a 64-character lowercase hex checksum. */
+    private val markerPattern = Regex("[0-9a-f]{64}\\.hash")
+
     fun items(layout: ContentLayout, category: Category): List<LibraryItem> {
-        val children = layout.dirFor(category).listFiles().orEmpty()
-        val names = children.mapTo(mutableSetOf()) { it.name }
-        return children
-            .filter { child ->
-                !(child.isFile && isSidecarOf(child, names))
-            }
-            .map { LibraryItem(it.name, it, it.isDirectory) }
-            .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+        val root = layout.dirFor(category)
+        return root.walkTopDown()
+            .filter { it.isFile && !isInternalMetadata(it) }
+            .map { LibraryItem(name = it.toRelativeString(root), file = it) }
+            .sortedBy { it.name.lowercase() }
+            .toList()
     }
 
-    private fun isSidecarOf(child: File, names: Set<String>): Boolean =
-        child.name.endsWith(ContentLayout.SIDECAR_SUFFIX) &&
-            names.contains(child.name.removeSuffix(ContentLayout.SIDECAR_SUFFIX))
+    private fun isInternalMetadata(file: File): Boolean {
+        if (!file.name.endsWith(ContentLayout.SIDECAR_SUFFIX)) return false
+        if (markerPattern.matches(file.name)) return true // ZIP marker
+        // A sidecar is hidden while its file exists beside it; a manifest file
+        // that itself ends in .hash (no sibling base) stays visible.
+        val base = file.name.removeSuffix(ContentLayout.SIDECAR_SUFFIX)
+        return File(file.parentFile, base).exists()
+    }
 
     /** Counts for the Home screen: books, albums (extracted OSTs), documents (§8). */
     fun counts(layout: ContentLayout): Triple<Int, Int, Int> {
-        val books = files(layout, Category.Books).size
+        val books = items(layout, Category.Books).size
         val albums = layout.music.listFiles().orEmpty().count { it.isDirectory }
-        val documents = files(layout, Category.Documents).size
+        val documents = items(layout, Category.Documents).size
         return Triple(books, albums, documents)
     }
 
@@ -49,7 +60,4 @@ object LibraryContent {
         }
             .sortedByDescending { it.second.file.lastModified() }
             .take(limit)
-
-    private fun files(layout: ContentLayout, category: Category): List<LibraryItem> =
-        items(layout, category).filterNot { it.isDirectory }
 }

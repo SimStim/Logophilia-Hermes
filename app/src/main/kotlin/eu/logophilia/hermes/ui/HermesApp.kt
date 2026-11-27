@@ -35,8 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -71,12 +70,15 @@ import eu.logophilia.hermes.sync.SyncOutcome
 import eu.logophilia.hermes.sync.SyncPhase
 import eu.logophilia.hermes.sync.SyncStatus
 import eu.logophilia.hermes.sync.WifiIndicator
+import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import android.content.Intent
+import android.net.Uri
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 
 private enum class Section(val labelRes: Int, val iconRes: Int) {
     Home(R.string.tab_home, R.drawable.ic_tab_home),
@@ -107,12 +109,20 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
 
     var showWifiPopup by remember { mutableStateOf(false) }
     var showSyncPopup by remember { mutableStateOf(false) }
-    val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val opener = remember { FileOpener(context) }
     val scope = rememberCoroutineScope()
-    val openPendingMessage = stringResource(R.string.library_open_pending)
+    var pendingMissing by remember { mutableStateOf<MissingOpen?>(null) }
+
+    fun open(file: File) {
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) { opener.open(file) }
+            val missing = outcome as? OpenOutcome.MissingHandler
+            if (missing != null) pendingMissing = MissingOpen(file, missing)
+        }
+    }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar {
                 Section.entries.forEach { section ->
@@ -153,13 +163,7 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
                 selected = category,
                 status = status,
                 onSelect = { libraryCategory = it.name },
-                // File opening with external applications arrives in the next
-                // milestone (SPECIFICATION.md §7).
-                onOpenItem = {
-                    scope.launch {
-                        snackbar.showSnackbar(openPendingMessage)
-                    }
-                },
+                onOpenItem = { item -> open(item.file) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -221,7 +225,76 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
             },
         )
     }
+    pendingMissing?.let { missing ->
+        MissingHandlerDialog(
+            missing = missing,
+            onDismiss = { pendingMissing = null },
+            // §7: offer to retry after installation — the intent is resolved
+            // again; when it now starts, the dialog goes away.
+            onRetry = { open(missing.file) },
+        )
+    }
 }
+
+/** A file whose open attempt found no installed application (§7). */
+private data class MissingOpen(val file: File, val outcome: OpenOutcome.MissingHandler)
+
+/**
+ * §7 Missing-handler handling: a concise installation suggestion, a direct
+ * Google Play link where an appropriate application exists (otherwise a Play
+ * search), and a retry after installation. Tapping Install keeps the dialog
+ * open on purpose so the user can come back to Retry.
+ */
+@Composable
+private fun MissingHandlerDialog(
+    missing: MissingOpen,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.open_missing_title)) },
+        text = { Text(missingHandlerText(missing.outcome.suggestion)) },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.open_cancel))
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.open_retry))
+                }
+                TextButton(
+                    onClick = {
+                        val url = missing.outcome.suggestion?.playUrl
+                            ?: OpenWith.searchUrlFor(missing.outcome.mimeType)
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    },
+                ) {
+                    Text(installButtonText(missing.outcome.suggestion))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun missingHandlerText(suggestion: InstallSuggestion?): String =
+    if (suggestion != null) {
+        stringResource(R.string.open_missing_with_suggestion, suggestion.appName)
+    } else {
+        stringResource(R.string.open_missing_generic)
+    }
+
+@Composable
+private fun installButtonText(suggestion: InstallSuggestion?): String =
+    if (suggestion != null) {
+        stringResource(R.string.open_install, suggestion.appName)
+    } else {
+        stringResource(R.string.open_search)
+    }
 
 /** Re-composes once per second while its screen is visible. */
 @Composable

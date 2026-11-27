@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  FileProvider path configuration (SPECIFICATION.md §7). Stub for Milestone 1:
-  exposes the app-private files root so external applications can open
-  synchronized content by content URI once file opening is implemented.
-  Synchronized content lives under files/ (Books/, Music/, Documents/, Other/).
+  FileProvider path configuration (SPECIFICATION.md §6, §7): exactly the four
+  content categories are exposed as content URIs — and only ever handed out
+  per file with temporary read permission. Temp/ and the .hash sidecars and
+  ZIP markers are internal metadata and never shared (§11: 24).
 -->
 <paths>
     <files-path
-        name="content_root"
-        path="." />
+        name="books"
+        path="Books/" />
+    <files-path
+        name="music"
+        path="Music/" />
+    <files-path
+        name="documents"
+        path="Documents/" />
+    <files-path
+        name="other"
+        path="Other/" />
 </paths>

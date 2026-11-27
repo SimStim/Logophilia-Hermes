@@ -121,3 +121,13 @@ which supersedes [design outline.md](design%20outline.md)).
   real Wi-Fi device to observe.
 - Next: Milestone 5 — file opening with external applications (§7):
   FileProvider Intents, MIME mapping, missing-handler suggestions.
+- **Milestone 5 — done.** File opening (§7): every Library item is an openable
+  file (archive directories are browsed through their contents); extension→MIME
+  mapping; `ACTION_VIEW` via FileProvider content URIs with temporary read
+  permission and Android 11+ `<queries>` visibility; handlers are resolved
+  at tap time, never assumed. Missing handlers get a concise dialog with a
+  direct Play link where one is known — Moon+ Reader for EPUB (§7),
+  foobar2000 for audio (package/link verified against the developer's own
+  Play redirect, §12.2) — or a Play search, plus a retry after installation.
+- Next: Milestone 6 — release engineering (§10): release keystore handling,
+  signed release APK, reproducible build.

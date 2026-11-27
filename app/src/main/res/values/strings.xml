@@ -16,7 +16,14 @@
     <string name="home_nothing_yet">Nothing synchronized yet.</string>
 
     <string name="library_empty">Nothing here yet — synchronize to fill this category.</string>
-    <string name="library_open_pending">Opening content with your apps arrives in the next milestone.</string>
+
+    <string name="open_missing_title">No app can open this</string>
+    <string name="open_missing_with_suggestion">No application for this file type is installed. %1$s can open it.</string>
+    <string name="open_missing_generic">No installed application can open this file.</string>
+    <string name="open_install">Install %1$s</string>
+    <string name="open_search">Search on Google Play</string>
+    <string name="open_retry">Retry</string>
+    <string name="open_cancel">Cancel</string>
 
     <string name="sync_state_idle">Ready to synchronize</string>
     <string name="sync_state_contacting">Contacting server…</string>
