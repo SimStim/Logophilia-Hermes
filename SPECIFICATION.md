@@ -1,9 +1,15 @@
 # Logophilia Hermes — Specification
 
-**Version 1.0 — 2026-11-26.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. Cross-repository follow-ups live in
-`TODO.md`. The API contract in §3 was verified against
-`SimStim/Logophilia-API` at commit `7994618`; re-verify if the API changes.
+**Version 1.1 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.1 folds in the decisions made after
+v1.0: greeting-only key renewal (§3.5), no `Content-Length` on `/download`
+(§3), incremental per-file commit with a per-commit network-gate re-check
+(§4, §5), acceptance of temporarily-not-metered networks (§4), indicator
+consolidation and a hierarchical Library (§8), image MIME types with a
+generic no-handler dialog (§7), bundled fonts and externalized user-facing
+strings (§8). Cross-repository follow-ups live in `TODO.md`. The API contract
+in §3 was verified against `SimStim/Logophilia-API` at commit `7994618`;
+re-verify if the API changes.
 
 ## 1. Purpose and scope
 
@@ -100,17 +106,20 @@ carries a `Referer` from `logophilia.eu`. The app sends neither by default.
 
 `GET /download?fileName=<name>` — one file.
 
-- Response: `application/octet-stream` with `Content-Length`. No HTTP Range
-  support: interrupted downloads cannot resume and are retried in full.
+- Response: `application/octet-stream`. The server sends **no**
+  `Content-Length` (chunked transfer — found in the M2 live check), so the
+  client must not rely on it; the SHA-256 verification is the integrity
+  check. No HTTP Range support: interrupted downloads cannot resume and are
+  retried in full.
 - A missing or invalid `fileName` currently returns HTTP 200 with a JSON
   error body (API fix scheduled). The client must therefore treat a response
   whose `Content-Type` is not `application/octet-stream` as a failed
   download.
 
 `GET /` — greeting. HTTP 200, `{"message":"Welcome to Logophilia API.","status":"success"}`.
-Used as the server-reachability probe for the Wi-Fi indicator (§8). Like all
-endpoints it requires the API key. It is not a synchronization attempt and
-does not affect the cooldown (§4).
+Used as the server-reachability probe for the Wi-Fi indicator (§8) and as the
+key-renewal channel (§3.5). Like all endpoints it requires the API key. It is
+not a synchronization attempt and does not affect the cooldown (§4).
 
 Rate limiting applies to POST endpoints only; the app uses none.
 
@@ -128,20 +137,32 @@ manifest (`freeloot: []`) is valid only when returned with
 `status: "success"`; with the current server behavior (`status: "error"`) it
 must be treated as a failed attempt that changes nothing locally.
 
-### API key renewal (specified, blocked on API feature)
+### API key renewal (greeting-only channel; blocked on API feature)
 
-The API will eventually return, for a key found in its retired-keys list:
+The API delivers key updates exclusively through the greeting endpoint. When
+a request presents a key found on the server's retired-keys list, `GET /`
+responds with the `key_expired` error carrying `new_api_key`:
 
 ```json
 { "success": false, "error": "key_expired",
   "message": "Your API key has expired.", "new_api_key": "NEW_KEY" }
 ```
 
-When this exact error is received: validate the new key is present and
-non-empty, persist it, and retry the original request exactly once. No
-endless renewal or retry loops; if renewal fails, show a useful error and
-wait for the next permitted attempt. Until the API implements this, the
-client behaves as in §3 Authentication. See `TODO.md`.
+Every other endpoint keeps the strict single-key check and answers an expired
+key with a plain `403`; no other endpoint ever delivers a replacement key.
+Rationale: renewal logic lives in one controller instead of all of them; the
+website never calls the greeting, so a replacement key can never be disclosed
+to web clients by mistake; and the app probes the greeting on every trigger
+event anyway, so a fresh key always arrives before any sync traffic.
+
+App behavior: the greeting probe is the first network step of every trigger
+(§4). If it reports `key_expired`: validate that the replacement key is
+present and non-empty, persist it, and continue the regular flow with the
+new key. No retry-once rule exists: a key rotated mid-sync simply fails that
+attempt, and the next probe delivers the new key. Never loop renewals; if a
+renewal fails, show a useful error and wait for the next permitted attempt.
+Until the API implements this, the client behaves as in §3 Authentication.
+See `TODO.md`.
 
 ## 4. Synchronization policy
 
@@ -159,11 +180,14 @@ detected through Android's native callbacks.
 
 ### Network gate
 
-Synchronize only over networks that are guaranteed unmetered: the active
-network must report `NET_CAPABILITY_NOT_METERED` and
-`NET_CAPABILITY_VALIDATED`. Never download anything over a metered
-connection. Known accepted limitation: a hotspot fed by someone else's
-mobile data still appears unmetered; no finer client-side signal exists.
+Synchronize only over networks that never bill the user: the active network
+must report `NET_CAPABILITY_VALIDATED` and either `NET_CAPABILITY_NOT_METERED`
+or `NET_CAPABILITY_TEMPORARILY_NOT_METERED` (API 30+). "Temporarily not
+metered" never charges the user, so it qualifies; because it may flip back
+to metered mid-transfer, the gate is re-checked before every file commit
+(§5). Never download anything over a metered connection. Known accepted
+limitation: a hotspot fed by someone else's mobile data still appears
+unmetered; no finer client-side signal exists.
 
 If no qualifying network is available, show the existing local library and
 skip synchronization.
@@ -189,10 +213,9 @@ synchronization operations (single-flight).
 ### Temp discipline
 
 The Temp directory is wiped at the beginning of every synchronization
-attempt, whatever the reason. Nothing survives across attempts: no resume,
-no reuse of partially verified downloads, no memory of pending files. If an
-attempt fails, its successful downloads are discarded together with Temp;
-the next attempt starts over from a fresh manifest.
+attempt, whatever the reason. With incremental committing (§5) it only ever
+holds the file or extraction currently being processed. Nothing survives
+across attempts; a failed attempt keeps only what it already committed.
 
 ## 5. Synchronization algorithm
 
@@ -222,21 +245,34 @@ For each manifest entry, compare against local content:
   successful extraction. A missing marker means the next sync re-downloads
   and re-extracts (self-heal after a crash mid-swap).
 
-### Phase C — Download and verify
+### Phase C — Download, verify and commit, file by file
 
-Download all required new or modified files into Temp. For each file:
-download completely, compute SHA-256, compare with the manifest, reject on
-mismatch. This verification is the only hashing a synchronization performs;
-unchanged content is never re-hashed (§ Phase B). Never overwrite a valid
-existing file with an unverified download. If any required download fails,
-the attempt fails: retain existing local content, discard Temp, perform no
-destructive cleanup.
+Process the required new or modified files one at a time, in manifest order:
 
-### Phase D — ZIP processing
+1. Re-check the network gate (§4). If it no longer qualifies, stop the
+   attempt: keep everything already committed, delete nothing, mark the
+   attempt failed.
+2. Download the file completely into Temp.
+3. Compute SHA-256 and compare with the manifest; on mismatch, reject the
+   file and fail the attempt (no cleanup; committed work retained).
+4. Commit the verified file immediately:
+   - Plain file: move it from Temp into its final location (atomic rename)
+     and write the `.hash` sidecar from the manifest value.
+   - ZIP: perform the full ZIP handling of Phase D (extract, swap, marker,
+     delete the archive).
+5. Continue with the next file.
 
-For every required ZIP:
+This verification is the only hashing a synchronization performs; unchanged
+content is never re-hashed (§ Phase B). Never overwrite a valid existing file
+with an unverified download. Because commits are immediate, a failed attempt
+never re-downloads the files it already committed: they match the manifest
+and are recognized as unchanged by the next attempt (§ Phase B).
 
-1. Verify the original ZIP checksum (Phase C).
+### Phase D — ZIP handling (per file, as part of its commit)
+
+For each new or modified ZIP, within its Phase C commit step:
+
+1. Verify the original ZIP checksum (Phase C step 3).
 2. Extract into a Temp directory, preserving the archive's internal
    directory structure.
 3. Apply ZIP Slip protection: reject entries that attempt to write outside
@@ -244,35 +280,33 @@ For every required ZIP:
 4. Apply reasonable limits to extracted size and entry count to prevent
    resource exhaustion.
 5. Ensure extraction completes before touching any live directory.
-
-Replacement is a full swap, never a merge: the previous version of the
-extracted directory is removed completely and the new directory takes its
-place. Then write the `<sha256>.hash` marker into the new directory root.
-The ZIP itself is deleted; nothing is archived.
+6. Swap: remove the previous version of the extracted directory completely
+   (never merge) and move the new directory into its place; write the
+   `<sha256>.hash` marker into the new directory root; delete the ZIP. The
+   ZIP itself is never retained.
 
 Extraction always completes before any swap, so an interrupted run can only
 lose content in the instant of the swap itself; that case self-heals on the
 next sync (missing directory or missing marker ⇒ re-download).
 
-### Phase E — Commit and cleanup
+### Phase E — Cleanup and completion
 
-Only once all required downloads have succeeded, all checksums are verified,
-and all required extractions have completed:
+Once every required file has been committed (Phase C completed without
+failure):
 
-1. Move verified new plain files into their final locations (atomic rename)
-   and write their `.hash` sidecars from the manifest values.
-2. Perform the directory swaps for ZIPs (Phase D) and write markers.
-3. Compare the final local content against the authoritative manifest and
+1. Compare the final local content against the authoritative manifest and
    delete obsolete files and extracted directories (including their
    markers) that no longer exist in the manifest.
-4. Remove Temp and any leftovers.
-5. Mark the synchronization successful.
+2. Remove Temp and any leftovers.
+3. Mark the synchronization successful.
 
-The operation is as transactional as practical. If any download,
-verification, extraction, or commit fails, no obsolete-content cleanup is
-performed. An interrupted operation must never leave the user with neither
-the old working version nor the verified replacement, except for the
-self-healing crash windows noted above.
+Deletions happen only after a fully successful attempt. If any download,
+verification, extraction, or commit fails — including a network-gate flip
+to metered mid-attempt — no obsolete-content cleanup is performed, and the
+files already committed in this attempt remain in place. An interrupted
+operation must never leave the user with neither the old working version
+nor the verified replacement, except for the self-healing crash windows
+noted above.
 
 An empty manifest (`status: "success"`, `freeloot: []`) is valid: after
 validation, remove all previously synchronized content.
@@ -322,6 +356,7 @@ private filesystem paths are never exposed.
 | `.md` | Markdown viewer/editor |
 | `.html`, `.htm` | browser |
 | `.pdf` | PDF reader |
+| `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif` | image viewer |
 | other | let Android choose |
 
 Use suitable MIME types and content URIs. Do not assume an application is
@@ -330,8 +365,10 @@ handlers gracefully: show a concise installation suggestion, provide a direct
 Google Play link where an appropriate application exists, and offer to retry
 after installation. Suggested suggestions: EPUB → Moon+ Reader (free),
 https://play.google.com/store/apps/details?id=com.flyersoft.moonreader ;
-audio → foobar2000 for Android (verify the current official package and link
-before implementation).
+audio → foobar2000 for Android (package verified, M5). If no handler exists
+and no specific suggestion applies, still show a dialog — a generic "no
+application found" message with a store search and a retry. Opening a file
+must never fail silently.
 
 ## 8. User interface
 
@@ -340,28 +377,41 @@ available content and make it easy to open.
 
 ### Home
 
-Logophilia logo (bundled assets, § Visual identity), Wi-Fi status indicator,
-synchronization status indicator, counts of available books/albums/documents,
-recently added content, quick access to content categories.
+Logophilia logo (bundled assets, § Visual identity), the Wi-Fi indicator as a
+large symbol — the same size as the synchronization symbol on the Sync page —
+counts of available books/albums/documents, recently added content, quick
+access to content categories. Home shows no separate sync symbol and no
+colored status circle: sync status lives in the bottom navigation's animated
+Sync icon and on the Sync page; each indicator has exactly one visual home.
 
-"Recently added" is derived from file modification times, newest first. This
-is sound because synchronization never rewrites files whose checksum matches
-the manifest — an mtime only changes when content actually changed or was
-first downloaded. Consequences, accepted: on a fresh install everything is
-recent; content is excluded from backups (§2) so restores cannot fake
-recency. No added dates are stored anywhere.
+"Recently added" is derived from file modification times, newest first, and
+lists top-level items only: a new OST album appears once, never as its inner
+files (for archive items, the extracted directory's own timestamp is used).
+This is sound because synchronization never rewrites files whose checksum
+matches the manifest — an mtime only changes when content actually changed
+or was first downloaded. Consequences, accepted: on a fresh install
+everything is recent; content is excluded from backups (§2) so restores
+cannot fake recency. No added dates are stored anywhere.
 
 ### Library
 
 Browse locally synchronized content by category: Books, Music, Documents,
-Other. Opening an item launches the appropriate external application (§7).
+Other. The listing is hierarchical: plain files appear as items; each
+extracted archive appears as a single item named after the archive basename
+without ".zip"; tapping it lists the files it contains (`.hash` markers and
+sidecars are never listed). Opening an item or a contained file launches the
+appropriate external application (§7).
 
 ### Sync
 
 Current synchronization state, last attempt time, error details, and a
 Manual Sync button that is disabled (greyed out) while the cooldown is
-running. Tapping the synchronization status symbol opens a small detail
-popup: status, last error if any, and the remaining cooldown time.
+running. The large synchronization symbol on this page is the only
+color-coded sync indicator in the app; tapping it opens a small detail
+popup: status, last error if any, and the remaining cooldown time. The
+bottom navigation's Sync icon plays the rotation animation while a
+synchronization runs and stays neutral otherwise, so sync activity is
+visible from every tab.
 
 ### About (replaces Settings)
 
@@ -374,6 +424,10 @@ Use the actual Logophilia logo, bundled in the APK from `art/`:
 (white on transparent) for dark mode. The app always follows the system
 theme; the matching logo variant is used automatically. No logo is fetched
 from the website at runtime.
+
+Typography: the app bundles **EB Garamond** (body) and **Comfortaa**
+(headings) as latin-subset variable fonts, with their OFL license files
+shipped in the APK. No user-side font installation is involved.
 
 ### Status indicators
 
@@ -399,6 +453,13 @@ Synchronization indicator (two-arrow circular sync symbol):
 - Green, animated: receiving the manifest or downloading files.
 - Green, static: synchronization completed successfully.
 - Red: synchronization failed; tap shows the error detail popup.
+
+### User-facing copy
+
+All user-facing strings live in `res/values/strings.xml` — including short
+words like "New", "Updated", "Removed" and the category labels. Counts use
+ICU `<plurals>` ("1 document" vs "N documents"). The string inventory and
+the editing workflow are documented in `docs/STRINGS.md`.
 
 ## 9. Error handling and reliability
 
@@ -437,8 +498,10 @@ long-term).
 3. Existing file with matching sidecar checksum: not downloaded again.
 4. Existing filename with different checksum: downloaded, verified,
    replaced — plain file and extracted ZIP directory alike, marker updated.
-5. Interrupted download: previous valid file retained; attempt discarded.
-6. Invalid checksum: downloaded file rejected; attempt fails.
+5. Interrupted download: previously committed files remain; nothing is
+   deleted; the interrupted file is discarded with Temp.
+6. Invalid checksum: downloaded file rejected; attempt fails; already-
+   committed files remain.
 7. ZIP download: verified, safely extracted into the correct category
    directory, marker written, original ZIP deleted.
 8. Interrupted ZIP extraction: previous working directory preserved.
@@ -451,8 +514,9 @@ long-term).
 14. No unmetered network: no synchronization; indicator red.
 15. Unmetered network returns while the app is open: synchronization starts
     if the cooldown permits.
-16. Expired API key: replacement received, stored, request retried
-    successfully. *(Deferred until the API implements key renewal.)*
+16. Expired API key: the greeting probe delivers the replacement, it is
+    stored, and the subsequent requests succeed. *(Deferred until the API
+    implements key renewal.)*
 17. Unrecognized/revoked API key: authentication failure reported, no
     endless retries.
 18. EPUB without an installed reader: Moon+ Reader installation offered.
@@ -465,6 +529,11 @@ long-term).
     re-extraction of that archive.
 24. `.hash` sidecars and markers are never visible in the UI; PDFs open
     from Documents; non-OST ZIPs land in Other.
+25. Files committed before a mid-attempt failure (including a network-gate
+    flip to metered) remain installed and are not re-downloaded by the next
+    attempt.
+26. An image file opens in a viewer or shows the generic "no application
+    found" dialog; opening a file never fails silently.
 
 ## 12. Development instructions
 

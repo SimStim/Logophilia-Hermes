@@ -41,21 +41,19 @@ Follow-ups from the design review (2026-11-26). Split by repository.
 
 - [ ] **Replace Referer spoof with client marker before public launch.** Depends on
   the matching API change above. Development uses the spoof; do not ship it.
-- [ ] **Amend SPECIFICATION.md (batch, v1.1).** Fold all post-v1.0 decisions in one
-  pass once the open decisions below land: §3.5 key renewal → greeting-only
-  channel (criterion #16 reworded); §3 `/download` sends no `Content-Length`
-  (chunked — found in the M2 live check; client relies on SHA-256, not
-  length); §4/§5 incremental per-file commit; §8 indicator consolidation +
-  hierarchical Library; §8 bundled fonts (EB Garamond body, Comfortaa
-  headings, OFL license files included).
-- [ ] **[needs decision] TEMPORARILY_NOT_METERED.** Observed in the emulator: the
-  gate requires `NET_CAPABILITY_NOT_METERED`, so a cellular link set to
-  "temporarily not metered" is refused — expected under the current spec
-  (guaranteed-unmetered rule). Options: (a) keep strict, or (b) accept
-  `TEMPORARILY_NOT_METERED` as qualifying since it never bills the user,
-  paired with re-checking the gate before each file commit (natural with the
-  incremental-commit change) so a mid-sync flip back to metered pauses
-  further commits. Ed's call, then spec amendment.
+- [x] **Amend SPECIFICATION.md (v1.1)** — done 2026-11-27. Applied: §3.5 key
+  renewal → greeting-only channel (criterion #16 reworded); §3 `/download`
+  sends no `Content-Length` (chunked; client relies on SHA-256); §4/§5
+  incremental per-file commit with a per-commit gate re-check (criteria
+  #5/#6 reworded, #25 added); §4 `TEMPORARILY_NOT_METERED` accepted; §8
+  indicator consolidation + hierarchical Library + recently-added top-level
+  items; §7 image MIME types + generic no-handler dialog (criterion #26
+  added); §8 bundled fonts and externalized strings; §8 copy/plurals.
+- [ ] **[decided: accept] TEMPORARILY_NOT_METERED.** The gate accepts
+  `TEMPORARILY_NOT_METERED` alongside `NOT_METERED` (it never bills the
+  user) and re-checks the gate before every file commit, so a mid-sync flip
+  back to metered stops further commits while keeping what is already
+  committed. Spec §4/§5 already amended; implement in M7.
 - [ ] **Incremental per-file commit (spec §4/§5 + engine).** Today an attempt is
   all-or-nothing: everything lands in Temp and the Library updates only
   after the complete sync. Change: commit each file (and each extracted ZIP
@@ -70,9 +68,9 @@ Follow-ups from the design review (2026-11-26). Split by repository.
   next to the sync symbol — redundant duplicate of the same state. Color
   coding lives on the big sync symbol on the Sync page only; the bottom-nav
   Sync icon shows the rotating animation while a sync runs and stays neutral
-  otherwise, so sync status is visible from every tab. Wi-Fi state becomes a
-  compact dot or text line (placement: small dot on Home vs. Sync page only
-  — [needs decision]).
+  otherwise, so sync status is visible from every tab. [decided] The Wi-Fi
+  symbol stays on **Home**, rendered at the same size as the Sync page's
+  sync symbol (it was smaller before).
 - [ ] **Hierarchical Library (spec §8 + UI; reverses the M5 flattening).** Storage
   is per spec (each OST extracts to `Music/<archive basename>/…`; two
   different albums' `cover.jpg` files coexisting is correct, nothing should
@@ -95,11 +93,14 @@ Follow-ups from the design review (2026-11-26). Split by repository.
   for counts ("1 document" vs "N documents"), and write a short guide
   documenting every string and the edit → `installDebug` workflow so
   wording can be tuned by hand without a session.
-- [ ] **Bundle EB Garamond (body) and Comfortaa (headings).** Fully possible in a
-  standalone app; no user installation or permission involved. `res/font/` +
-  `FontFamily` wiring and theme update; include the OFL license files (the
-  license requires them when redistributing); both fonts are on Google
-  Fonts; small APK size increase. Spec §8 visual-identity amendment.
+- [ ] **Bundle EB Garamond (body) and Comfortaa (headings).** Files already
+  fetched from Google Fonts and latin-subset with fonttools:
+  `app/src/main/res/font/ebgaramond.ttf`, `ebgaramond_italic.ttf`,
+  `comfortaa.ttf` — still fully variable (wght axes intact, ~600 KB total,
+  down from 1.8 MB); OFL license files staged in
+  `app/src/main/assets/licenses/`. Remaining: `FontFamily` wiring and theme
+  update (EB Garamond body, Comfortaa headings). Spec §8 amendment already
+  applied.
 - [ ] **Formal acceptance pass on a physical device** (spec §11, 24 criteria).
   Needs a real Wi-Fi phone; the engine logic is already covered by 78 tests.
   Uninstall the debug build before installing the first release-signed APK
