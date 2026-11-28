@@ -232,7 +232,13 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
             title = { Text(stringResource(R.string.popup_sync_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SyncStateLines(status = status, headingStyle = MaterialTheme.typography.bodyMedium)
+                    val tick = rememberTickSeconds()
+                    val remaining = remember(tick) { coordinator.cooldownRemainingMillis() }
+                    SyncStateLines(
+                        status = status,
+                        headingStyle = MaterialTheme.typography.bodyMedium,
+                        coolingDown = remaining > 0,
+                    )
                     val failure = status.lastOutcome as? SyncOutcome.Failure
                     if (failure != null) {
                         Text(
@@ -242,8 +248,6 @@ fun HermesApp(coordinator: SyncCoordinator, contentLayout: ContentLayout) {
                             ),
                         )
                     }
-                    val tick = rememberTickSeconds()
-                    val remaining = remember(tick) { coordinator.cooldownRemainingMillis() }
                     if (remaining > 0) {
                         Text(stringResource(R.string.sync_cooldown, formatCooldown(remaining)))
                     }
@@ -385,6 +389,7 @@ private fun SyncStateLines(
     headingStyle: TextStyle,
     modifier: Modifier = Modifier,
     centered: Boolean = false,
+    coolingDown: Boolean = false,
 ) {
     val lineModifier = if (centered) modifier.fillMaxWidth() else modifier
     val alignment = if (centered) TextAlign.Center else null
@@ -432,7 +437,11 @@ private fun SyncStateLines(
             modifier = lineModifier,
         )
         else -> Text(
-            stringResource(R.string.sync_state_idle),
+            // §8 Sync: the idle page must not claim readiness while the
+            // persisted cooldown still gates the button — it says so instead.
+            stringResource(
+                if (coolingDown) R.string.sync_state_cooldown else R.string.sync_state_idle,
+            ),
             style = headingStyle,
             textAlign = alignment,
             modifier = lineModifier,
@@ -709,6 +718,10 @@ private fun SyncScreen(
             onClick = onSyncTap,
         )
         Spacer(Modifier.height(12.dp))
+        // The cooldown is read first so the state line can react to it (§8):
+        // a fresh app open within five minutes of the last attempt must not
+        // claim readiness while the button is still gated.
+        val remaining = remember(tick) { coordinator.cooldownRemainingMillis() }
         // The success summary reads as a vertical list (§8 Sync); the page's
         // centering keeps every line centered, including wrapped ones.
         SyncStateLines(
@@ -716,6 +729,7 @@ private fun SyncScreen(
             headingStyle = MaterialTheme.typography.titleMedium,
             modifier = Modifier.fillMaxWidth(),
             centered = true,
+            coolingDown = remaining > 0,
         )
         Spacer(Modifier.height(8.dp))
         val lastAttempt = coordinator.lastSyncAttemptMillis()
@@ -745,7 +759,6 @@ private fun SyncScreen(
             }
         }
         Spacer(Modifier.height(12.dp))
-        val remaining = remember(tick) { coordinator.cooldownRemainingMillis() }
         if (remaining > 0) {
             Text(
                 text = stringResource(R.string.sync_cooldown, formatCooldown(remaining)),

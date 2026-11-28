@@ -59,6 +59,7 @@
 
     <!-- Sync (§8): the success summary joins three ICU plurals -->
     <string name="sync_state_idle">Ready to synchronize</string>
+    <string name="sync_state_cooldown">Cooling down</string>
     <string name="sync_state_contacting">Contacting server…</string>
     <string name="sync_state_receiving">Receiving content…</string>
     <string name="sync_state_committing">Committing…</string>

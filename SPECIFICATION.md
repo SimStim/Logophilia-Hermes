@@ -1,7 +1,11 @@
 # Logophilia Hermes — Specification
 
-**Version 1.6 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. v1.6 folds in the decision made after
+**Version 1.7 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.7 records how the §10 update
+channel really behaves on current Android: the installer requires the
+source app to declare `REQUEST_INSTALL_PACKAGES` (rejection is silent
+otherwise), and the per-app "Install unknown apps" consent is asked once
+(§10, §11 criterion 27). v1.6 folded in the decision made after
 v1.5: Home's counts include the Other category, where the self-update
 package arrives (§8). v1.5 folds in the naming decision made
 after v1.4: the launcher keeps the full "Logophilia Hermes" while the About
@@ -457,7 +461,10 @@ appropriate external application (§7).
 
 Current synchronization state, last attempt time, error details, and a
 Manual Sync button that is disabled (greyed out) while the cooldown is
-running. The large synchronization symbol on this page is the only
+running. While the cooldown gates the button, the state line reads
+"Cooling down" instead of "Ready to synchronize" — the page and the detail
+popup never claim readiness while no attempt is possible. The large
+synchronization symbol on this page is the only
 color-coded sync indicator in the app; tapping it opens a small detail
 popup: status, last error if any, and the remaining cooldown time. The
 bottom navigation's Sync icon plays the rotation animation while a
@@ -551,12 +558,17 @@ published as free loot — dropped into the API's downloads folder, it enters
 the manifest like any content file and is synchronized into every installed
 app's Library (§5). Installing it is one tap: `.apk` maps to
 `application/vnd.android.package-archive`, and ACTION_VIEW hands the
-package to Android's installer with the usual sideload confirmation (§7);
-the signature must match the release keystore. Consequences, accepted:
+package to Android's installer (§7); the signature must match the release
+keystore. The app declares `REQUEST_INSTALL_PACKAGES` — modern installers
+reject the handoff silently without it (found and fixed on-device, v1.7) —
+and the user still confirms every install: the first tap asks for the
+per-app "Install unknown apps" consent ("Allow from this source"), later
+taps go straight to the confirmation dialog. The update is never silent.
+The bootstrap is inherently out-of-band: an install old enough to predate
+the opening cannot install its own successor. Consequences, accepted:
 versioned file names keep releases distinguishable, and removing an old
 package from the server removes it from the Libraries at the next
-successful sync (§5). The update is never silent — the user taps the
-package and confirms the install.
+successful sync (§5).
 
 ## 11. Acceptance criteria
 
@@ -603,8 +615,12 @@ package and confirms the install.
 26. An image file opens in a viewer or shows the generic "no application
     found" dialog; opening a file never fails silently.
 27. The app package delivered through the manifest opens Android's package
-    installer (the §10 update channel); after an install, content, the
-    persisted API key, and the cooldown survive.
+    installer (the §10 update channel); the first install asks for the
+    per-app "Install unknown apps" consent, later installs go straight to
+    the confirmation; after an install, content, the persisted API key, and
+    the cooldown survive. *(Verified end-to-end on the emulator, including
+    consent and install; the on-device repetition comes with the first
+    real update.)*
 
 ## 12. Development instructions
 

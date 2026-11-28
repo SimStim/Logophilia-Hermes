@@ -89,7 +89,8 @@ different signing identity.
 
 | Name | Value | Where it appears |
 |---|---|---|
-| `sync_state_idle` | Ready to synchronize | Sync symbol text before the first attempt |
+| `sync_state_idle` | Ready to synchronize | Sync symbol text before the first attempt, when no attempt is possible |
+| `sync_state_cooldown` | Cooling down | Sync symbol text while the persisted cooldown gates the button (page and detail popup) |
 | `sync_state_contacting` | Contacting server… | While the manifest request waits (blue) |
 | `sync_state_receiving` | Receiving content… | While files are downloading (green animated) |
 | `sync_state_committing` | Committing… | While verified files commit / cleanup runs |

@@ -8,6 +8,14 @@
          registers for network availability callbacks. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- §10 update channel: the Library can hand the app's own package to the
+         package installer (§7). Modern installers reject that handoff
+         silently unless the source app declares this permission — the user
+         still confirms every install, and toggles "Install unknown apps"
+         for this app on first use. Play distribution would additionally
+         require a declaration form for it. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- §7 file opening: Android 11+ package visibility — declare the kinds of
          applications whose presence we must actually resolve (never assumed). -->
     <queries>

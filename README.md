@@ -59,8 +59,8 @@ sufficient for synchronization.
 - **Self-updating through the same channel** — the app package itself can be
   published as free loot: it arrives in the Library like any content file,
   and one tap installs it through Android's package installer (§7, §10).
-  No automatic updater, no silent installs — but no separate download trip
-  for an update, either.
+  Android asks once to allow installs from Hermes; no automatic updater, no
+  silent installs — but no separate download trip for an update, either.
 
 ## Building
 
