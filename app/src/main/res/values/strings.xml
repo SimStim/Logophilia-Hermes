@@ -5,7 +5,10 @@
     in docs/STRINGS.md.
 -->
 <resources>
-    <string name="app_name">Hermes</string>
+    <!-- The launcher/system name is the full "Logophilia Hermes"; the About
+         page shows the short form under the logophilia logo (§8 About). -->
+    <string name="app_name">Logophilia Hermes</string>
+    <string name="about_name">Hermes</string>
 
     <!-- Bottom navigation tabs -->
     <string name="tab_home">Home</string>

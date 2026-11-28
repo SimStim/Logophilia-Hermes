@@ -2,8 +2,11 @@
 
 Follow-ups from the design review (2026-11-26). Split by repository.
 
-Status: every item below is resolved except the formal acceptance pass on a
-physical device (last item in the Hermes list).
+Status: every item below is resolved. The formal acceptance pass on a
+physical device (last item in the Hermes list) was completed by the user on
+2026-11-27 — the first release build passed the on-device criteria they
+exercised; two criteria are only observable at the first real key rotation
+(#16) and the first package published through the manifest (#27).
 
 ## API (SimStim/Logophilia-API)
 
@@ -97,9 +100,20 @@ physical device (last item in the Hermes list).
   (2026-11-27): the latin-subset variable TTFs (wght axes intact) are wired
   into the theme via `FontVariation` (EB Garamond body/label, Comfortaa
   display/headline/title); OFL licenses ship in `app/src/main/assets/licenses/`.
-- [ ] **Formal acceptance pass on a physical device** (spec §11, 27 criteria).
-  Needs a real Wi-Fi phone; the engine logic is already covered by 78 tests.
-  Uninstall the debug build before installing the first release-signed APK
-  (signature change). Includes the states only visible during a real sync:
-  blue/green sync indicator, amber Wi-Fi state, populated Library and
-  recently-added lists, cooldown countdown on the Manual Sync button.
+- [x] **Formal acceptance pass on a physical device** (spec §11 criteria).
+  Completed 2026-11-27 by the user on their own phone: fresh install of the
+  release APK (bootstrapped via Nextcloud/KDE Connect after the Play-Store
+  Nextcloud app refused the APK download — browsers do not), first open on
+  validated unmetered Wi-Fi started the sync immediately; the full library
+  downloaded much faster than on the emulator; the live phase updates (blue
+  → animated green → success) ran without visual noise, with Home's counts,
+  recently-added list, and the Library filling in real time; About and Sync
+  pages vertically centered; indicator colors read well on the phone's OLED
+  (the provisional green stays, slightly dark but unproblematic); epub
+  opened immediately in Moon+ Reader, .opus showed the app picker, and audio
+  played on in the background (VLC, minimized) while the app stayed usable.
+  Two criteria stay observable-only: #16 (key rotation through `usha`)
+  awaits the first real server-side rotation; #27 (the manifest-delivered
+  package opens the installer) awaits the first APK published in the
+  downloads folder — the mapping is unit-tested and the installer path is
+  standard sideloading.

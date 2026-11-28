@@ -1,7 +1,9 @@
 # Logophilia Hermes — Specification
 
-**Version 1.4 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. v1.4 folds in the API fixes that
+**Version 1.5 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.5 folds in the naming decision made
+after v1.4: the launcher keeps the full "Logophilia Hermes" while the About
+page shows the short "Hermes" beneath the logophilia logo (§8). v1.4 folds in the API fixes that
 landed after v1.3: an empty downloads folder now answers a deliberate empty
 manifest with `status: "success"` (§3, §5), and a missing or invalid
 `/download` name now answers a real `404` (§3) — the client's defensive
@@ -461,7 +463,12 @@ visible from every tab.
 
 ### About (replaces Settings)
 
-Application information and version. There are no user preferences.
+Application information and version. There are no user preferences. The
+page shows the logophilia logo with the short name "Hermes" beneath it;
+the launcher and the system keep the full "Logophilia Hermes" (`app_name`)
+— the logo's wordmark would make a full-name title redundant there, and
+the short name distinguishes the page from the many unrelated "Hermes"
+apps.
 
 ### Visual identity
 

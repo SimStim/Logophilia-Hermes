@@ -32,7 +32,8 @@ different signing identity.
 
 | Name | Value | Where it appears |
 |---|---|---|
-| `app_name` | Logophilia Hermes | Launcher label, app bar, logo `contentDescription` (Home and About) |
+| `app_name` | Logophilia Hermes | Launcher/system label (AndroidManifest), logo `contentDescription` (Home and About) |
+| `about_name` | Hermes | About page title, shown beneath the logophilia logo (§8 About — the logo already carries the wordmark) |
 
 ### Bottom navigation tabs
 

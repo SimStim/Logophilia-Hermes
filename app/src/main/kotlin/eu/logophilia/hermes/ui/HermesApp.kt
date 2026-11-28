@@ -770,7 +770,9 @@ private fun AboutScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.size(96.dp),
         )
         Spacer(Modifier.height(12.dp))
-        Text(text = stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+        // §8 About: the short name under the logophilia logo — the launcher
+        // keeps the full "Logophilia Hermes" (strings.xml app_name).
+        Text(text = stringResource(R.string.about_name), style = MaterialTheme.typography.titleLarge)
         Text(
             text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
             style = MaterialTheme.typography.bodyMedium,
