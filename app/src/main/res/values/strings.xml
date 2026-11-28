@@ -35,6 +35,10 @@
         <item quantity="one">1 document</item>
         <item quantity="other">%d documents</item>
     </plurals>
+    <plurals name="home_count_other">
+        <item quantity="one">1 other item</item>
+        <item quantity="other">%d other items</item>
+    </plurals>
     <string name="home_recently_added">Recently added</string>
     <string name="home_nothing_yet">Nothing synchronized yet.</string>
 

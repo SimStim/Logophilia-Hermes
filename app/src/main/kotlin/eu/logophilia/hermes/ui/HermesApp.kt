@@ -469,8 +469,14 @@ private fun HomeScreen(
     // fills live while a synchronization runs.
     val home by produceState<HomeData?>(null, contentLayout, status) {
         value = withContext(Dispatchers.IO) {
-            val (books, albums, documents) = LibraryContent.counts(contentLayout)
-            HomeData(books, albums, documents, LibraryContent.recent(contentLayout))
+            val counts = LibraryContent.counts(contentLayout)
+            HomeData(
+                counts.books,
+                counts.albums,
+                counts.documents,
+                counts.other,
+                LibraryContent.recent(contentLayout),
+            )
         }
     }
 
@@ -510,6 +516,11 @@ private fun HomeScreen(
                 )
                 Text(
                     text = quantityString(R.plurals.home_count_documents, data.documents),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = quantityString(R.plurals.home_count_other, data.other),
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
@@ -564,6 +575,7 @@ private data class HomeData(
     val books: Int,
     val albums: Int,
     val documents: Int,
+    val other: Int,
     val recent: List<Pair<Category, LibraryItem>>,
 )
 

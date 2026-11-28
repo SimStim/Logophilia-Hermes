@@ -60,6 +60,7 @@ different signing identity.
 | `home_count_books` (plurals) | 1 book / %d books | Home counts list, one line per category |
 | `home_count_albums` (plurals) | 1 album / %d albums | Home counts list |
 | `home_count_documents` (plurals) | 1 document / %d documents | Home counts list |
+| `home_count_other` (plurals) | 1 other item / %d other items | Home counts list |
 | `home_recently_added` | Recently added | Home "Recently added" heading |
 | `home_nothing_yet` | Nothing synchronized yet. | Home counts line before the first successful sync |
 

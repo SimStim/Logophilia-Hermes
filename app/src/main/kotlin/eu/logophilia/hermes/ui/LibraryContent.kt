@@ -110,13 +110,15 @@ object LibraryContent {
         return File(file.parentFile, base).exists()
     }
 
-    /** Counts for the Home screen: books, albums (extracted OSTs), documents (§8). */
-    fun counts(layout: ContentLayout): Triple<Int, Int, Int> {
-        val books = topLevel(layout, Category.Books).size
-        val albums = layout.music.listFiles().orEmpty().count { it.isDirectory }
-        val documents = topLevel(layout, Category.Documents).size
-        return Triple(books, albums, documents)
-    }
+    /** Home screen counts (§8): books, albums (extracted OSTs), documents, other. */
+    data class Counts(val books: Int, val albums: Int, val documents: Int, val other: Int)
+
+    fun counts(layout: ContentLayout): Counts = Counts(
+        books = topLevel(layout, Category.Books).size,
+        albums = layout.music.listFiles().orEmpty().count { it.isDirectory },
+        documents = topLevel(layout, Category.Documents).size,
+        other = topLevel(layout, Category.Other).size,
+    )
 
     /**
      * Recently added, derived from modification times, newest first (§8 Home).

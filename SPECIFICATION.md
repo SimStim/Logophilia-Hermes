@@ -1,7 +1,9 @@
 # Logophilia Hermes — Specification
 
-**Version 1.5 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. v1.5 folds in the naming decision made
+**Version 1.6 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.6 folds in the decision made after
+v1.5: Home's counts include the Other category, where the self-update
+package arrives (§8). v1.5 folds in the naming decision made
 after v1.4: the launcher keeps the full "Logophilia Hermes" while the About
 page shows the short "Hermes" beneath the logophilia logo (§8). v1.4 folds in the API fixes that
 landed after v1.3: an empty downloads folder now answers a deliberate empty
@@ -424,7 +426,8 @@ available content and make it easy to open.
 
 Logophilia logo (bundled assets, § Visual identity), the Wi-Fi indicator as a
 large symbol — the same size as the synchronization symbol on the Sync page —
-counts of available books/albums/documents, recently added content, quick
+counts of available books/albums/documents and other items, recently added
+content, quick
 access to content categories. Home shows no separate sync symbol and no
 colored status circle: sync status lives in the bottom navigation's animated
 Sync icon and on the Sync page; each indicator has exactly one visual home.

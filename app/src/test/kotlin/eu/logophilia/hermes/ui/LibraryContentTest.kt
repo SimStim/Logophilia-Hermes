@@ -143,7 +143,7 @@ class LibraryContentTest {
     }
 
     @Test
-    fun `counts are books, albums, documents`() {
+    fun `counts are books, albums, documents, and other items`() {
         layout.createDirectories()
         File(layout.books, "B.epub").writeText("b")
         File(layout.books, "C.epub").writeText("c")
@@ -152,11 +152,12 @@ class LibraryContentTest {
         File(layout.music, "Loose.opus").writeText("l")
         File(layout.other, "X.bin").writeText("x")
 
-        val (books, albums, documents) = LibraryContent.counts(layout)
+        val counts = LibraryContent.counts(layout)
 
-        assertEquals(2, books)
-        assertEquals(1, albums)
-        assertEquals(1, documents)
+        assertEquals(2, counts.books)
+        assertEquals(1, counts.albums)
+        assertEquals(1, counts.documents)
+        assertEquals(1, counts.other)
     }
 
     @Test
