@@ -571,6 +571,10 @@ reject the handoff silently without it (found and fixed on-device, v1.7) —
 and the user still confirms every install: the first tap asks for the
 per-app "Install unknown apps" consent ("Allow from this source"), later
 taps go straight to the confirmation dialog. The update is never silent.
+versionCode must increase with every published package: Android refuses
+downgrades at install-commit, and the installer's wording for that refusal
+is generic ("App not installed as package appears to be invalid.") — not a
+sign of a broken file.
 The bootstrap is inherently out-of-band: an install old enough to predate
 the opening cannot install its own successor. Consequences, accepted:
 versioned file names keep releases distinguishable, and removing an old

@@ -112,8 +112,11 @@ exercised; two criteria are only observable at the first real key rotation
   (the provisional green stays, slightly dark but unproblematic); epub
   opened immediately in Moon+ Reader, .opus showed the app picker, and audio
   played on in the background (VLC, minimized) while the app stayed usable.
-  Two criteria stay observable-only: #16 (key rotation through `usha`)
-  awaits the first real server-side rotation; #27 (the manifest-delivered
-  package opens the installer) awaits the first APK published in the
-  downloads folder — the mapping is unit-tested and the installer path is
-  standard sideloading.
+  Two criteria were observable-only at pass time: #16 (key rotation through
+  `usha`) awaits the first real server-side rotation; #27 (the
+  manifest-delivered package opens the installer) was then exercised
+  on-device the same day — 0.0.4 was published to the downloads folder,
+  arrived via the channel, and tapping a Library package opens the
+  installer; its refusal of OLDER packages (downgrade protection, generic
+  "appears to be invalid" wording) was reproduced identically on the
+  emulator. Criterion 27 is closed; #16 remains rotation-gated.
