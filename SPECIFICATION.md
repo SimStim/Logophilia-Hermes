@@ -1,7 +1,10 @@
 # Logophilia Hermes — Specification
 
-**Version 1.7 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
-reference only and will be abandoned. v1.7 records how the §10 update
+**Version 1.8 — 2026-11-27.** Supersedes `design outline.md`, which is kept for
+reference only and will be abandoned. v1.8 folds in the decision made after
+v1.7: within one attempt, the required files download smallest first (§5
+Phase C), so the Library populates visibly while the big archives stream.
+v1.7 records how the §10 update
 channel really behaves on current Android: the installer requires the
 source app to declare `REQUEST_INSTALL_PACKAGES` (rejection is silent
 otherwise), and the per-app "Install unknown apps" consent is asked once
@@ -297,7 +300,11 @@ For each manifest entry, compare against local content:
 
 ### Phase C — Download, verify and commit, file by file
 
-Process the required new or modified files one at a time, in manifest order:
+Process the required new or modified files one at a time, smallest first
+(§3 `size`; decided v1.8): small files commit within seconds, so the
+Library fills visibly from the start of the attempt and small content is
+openable while the big archives still stream. The manifest's own order is
+irrelevant.
 
 1. Re-check the network gate (§4). If it no longer qualifies, stop the
    attempt: keep everything already committed, delete nothing, mark the

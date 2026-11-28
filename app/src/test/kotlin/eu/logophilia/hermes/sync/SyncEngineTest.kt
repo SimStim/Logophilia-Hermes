@@ -163,6 +163,27 @@ class SyncEngineTest {
     }
 
     @Test
+    fun `downloads run smallest first so the library fills visibly`() {
+        // §5 Phase C: the required files are processed smallest-first — small
+        // content commits within seconds and is openable while the big
+        // archives still stream. The manifest order is irrelevant; here it is
+        // deliberately big-to-small.
+        layout = before()
+        // The ZIP body must not deflate away: a seeded pseudo-random stream
+        // has no LZ77 period, so the archive really is the biggest file here.
+        val random = java.util.Random(0)
+        val bigBody = buildString { repeat(4000) { append('a' + random.nextInt(26)) } }
+        val big = FakeEntry("Big.zip", zipBytes("album/track.opus" to bigBody))
+        val medium = FakeEntry("Medium.pdf", bytes("m".repeat(300)))
+        val small = FakeEntry("Small.txt", bytes("s"))
+        val client = FakeClient(big, medium, small)
+
+        engine(client).attempt()
+
+        assertEquals(listOf("Small.txt", "Medium.pdf", "Big.zip"), client.downloads)
+    }
+
+    @Test
     fun `unchanged content is not downloaded or re-extracted`() {
         layout = before()
         val book = FakeEntry("Book.epub", bytes("book"))
@@ -483,7 +504,8 @@ class SyncEngineTest {
 
         // The new manifest updates the book, adds a file, and removes Old.pdf;
         // the gate flips back to metered after the first download — the
-        // re-check before the next file's commit must refuse it.
+        // re-check before the next file must refuse it. Smallest-first (§5
+        // Phase C) means New.pdf (3 bytes) downloads before Book.epub.
         val bookV2 = FakeEntry("Book.epub", bytes("book v2"))
         val fresh = FakeEntry("New.pdf", bytes("new"))
         client.manifest = listOf(bookV2, fresh)
@@ -492,22 +514,23 @@ class SyncEngineTest {
         var gateCalls = 0
         val flipAfterFirstDownload: () -> Boolean = {
             gateCalls++
-            if (client.downloads.contains("Book.epub")) false else true
+            if (client.downloads.isNotEmpty()) false else true
         }
 
         val outcome = engine(client, flipAfterFirstDownload).attempt()
 
         assertTrue("expected Failure, got $outcome", outcome is SyncOutcome.Failure)
         assertEquals(NETWORK_GATE_LOST_MESSAGE, (outcome as SyncOutcome.Failure).message)
-        // The flip was observed before the second file's commit (preflight,
+        // The flip was observed before the second file's download (preflight,
         // one re-check per required file — the second download never happened):
         assertEquals(3, gateCalls)
         // The second file never reached the network (§5 Phase C 1):
-        assertEquals(listOf("Book.epub"), client.downloads)
+        assertEquals(listOf("New.pdf"), client.downloads)
         // What was committed in this attempt remains (§5 Phase E, §11: 25):
-        assertEquals("book v2", File(layout.books, "Book.epub").readText())
-        assertEquals(bookV2.sha256, File(layout.books, "Book.epub.hash").readText())
-        assertFalse(File(layout.documents, "New.pdf").exists())
+        assertEquals("new", File(layout.documents, "New.pdf").readText())
+        assertEquals(fresh.sha256, File(layout.documents, "New.pdf.hash").readText())
+        // The book update never ran; the previous version is untouched:
+        assertEquals("book v1", File(layout.books, "Book.epub").readText())
         // Deletions only ever follow a fully successful attempt (§5 Phase E):
         assertEquals("old", File(layout.documents, "Old.pdf").readText())
     }
@@ -515,18 +538,20 @@ class SyncEngineTest {
     @Test
     fun `files committed before a later failure are never re-downloaded`() {
         layout = before()
-        val book = FakeEntry("Book.epub", bytes("book"))
+        // Smallest-first (§5 Phase C): the OST is smallest, the corrupt file
+        // is biggest, so both other files commit before the failure.
+        val book = FakeEntry("Book.epub", bytes("book".repeat(100)))
         val ost = FakeEntry("The Pitch 2025 OST.zip", zipBytes("album/track.opus" to "audio"))
-        val broken = FakeEntry("Extra.pdf", bytes("extra"))
+        val broken = FakeEntry("Extra.pdf", bytes("extra".repeat(200)))
         val client = FakeClient(book, ost, broken)
         client.corruptDownloadFor = "Extra.pdf"
 
         val first = engine(client).attempt()
 
-        // The verified book and the extracted OST are committed despite the
+        // The extracted OST and the verified book are committed despite the
         // later checksum mismatch (§5 Phase C, §11: 25):
         assertTrue("expected Failure, got $first", first is SyncOutcome.Failure)
-        assertEquals("book", File(layout.books, "Book.epub").readText())
+        assertEquals("book".repeat(100), File(layout.books, "Book.epub").readText())
         assertEquals(book.sha256, File(layout.books, "Book.epub.hash").readText())
         assertEquals("audio", File(layout.music, "The Pitch 2025 OST/album/track.opus").readText())
         assertEquals(ost.sha256, File(layout.music, "The Pitch 2025 OST/${ost.sha256}.hash").readText())

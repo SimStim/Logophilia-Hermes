@@ -236,13 +236,15 @@ class SyncEngine(
 
     /**
      * Phases C–D, merged: each required file is downloaded, verified, and
-     * committed in turn, in manifest order (§5 Phase C). A failure — or a
-     * network-gate flip — stops the attempt while keeping every file already
-     * committed (§5 Phase E): those files match the manifest and are
-     * recognized as unchanged by the next attempt (§5 Phase B).
+     * committed in turn, smallest first (§5 Phase C) — the Library fills
+     * visibly from the first seconds and small content is openable while
+     * the big archives still stream. A failure — or a network-gate flip —
+     * stops the attempt while keeping every file already committed (§5
+     * Phase E): those files match the manifest and are recognized as
+     * unchanged by the next attempt (§5 Phase B).
      */
     private fun downloadAndCommitEach(work: Work, downloads: File, extracts: File) {
-        for (entry in work.required) {
+        for (entry in work.required.sortedBy { it.size }) {
             // §5 Phase C 1: the gate is re-checked before every file commit —
             // a "temporarily not metered" network may flip back mid-attempt
             // (§4 Network gate). Stopping keeps committed work, deletes
